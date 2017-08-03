@@ -28,14 +28,18 @@ __email__ = "ilia.korvigo@gmail.com"
 
 map = map if sys.version_info.major >= 3 else itertools.imap
 DESCRIPTION_PATERN = re.compile("Full=([A-Za-z0-9\-()/,.:\s]+)")
+EC_PATTERN = re.compile("EC=([0-9.]+)")
 
 
 def sprot_description(description):
     """
     :type description: str
+    :return: ec-number, new description
+    :rtype: str, str
     """
     matches = DESCRIPTION_PATERN.findall(description)
-    return ";".join(map(str.strip, matches))
+    ec = (EC_PATTERN.findall(description) or [""])[0]
+    return ec, ";".join(map(str.strip, matches))
 
 
 def toprokka(srec):
@@ -44,8 +48,8 @@ def toprokka(srec):
     """
     id_ = srec.id
     name = srec.name.split("_")[0]  # drop the species part if present
-    descr = sprot_description(srec.description)
-    prokka_id = "{} ~~~{}~~~{}".format(id_, name, descr)
+    ec, descr = sprot_description(srec.description)
+    prokka_id = "{} {}~~~{}~~~{}".format(id_, ec, name, descr)
     return SeqRecord(seq=srec.seq, id=prokka_id, name="", description="")
 
 
