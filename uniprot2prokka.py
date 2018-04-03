@@ -8,16 +8,11 @@ STDOUT
 
 """
 
-from __future__ import print_function
-
-import itertools
 import re
-import os
+import sys
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-import sys
-
 
 __author__ = "Ilia Korvigo"
 __license__ = "MIT"
@@ -26,7 +21,6 @@ __maintainer__ = "Ilia Korvigo"
 __email__ = "ilia.korvigo@gmail.com"
 
 
-map = map if sys.version_info.major >= 3 else itertools.imap
 DESCRIPTION_PATERN = re.compile("Full=([A-Za-z0-9\-()/,.:\s]+)")
 EC_PATTERN = re.compile("EC=([0-9.]+)")
 
@@ -60,6 +54,7 @@ def main():
         SeqIO.write(prokka_records, sys.stdout, "fasta")
     except BrokenPipeError:  # pipe closed
         pass
+
 
 if __name__ == "__main__":
     main()
