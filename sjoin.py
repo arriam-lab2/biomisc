@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 """
 
 Join FASTA/FASTQ files into a single dataset. Consider sample files S1.fastq
@@ -13,19 +15,27 @@ read from sample S2, read S2_j maps directly to the (j-i)-th read in S2.fastq.
 
 """
 
+import sys
+
+if sys.version_info < (3, 6):
+    print('This tool requires Python >= 3.6')
+    sys.exit(1)
+
 import gzip
 import operator as op
 import os
 import re
-import sys
 from itertools import chain
 from typing import Iterator, Iterable, Callable, Mapping, Tuple
 
-import click
-from Bio.SeqIO.FastaIO import SimpleFastaParser
-from Bio.SeqIO.QualityIO import FastqGeneralIterator
-from fn import F
-
+try:
+    import click
+    from Bio.SeqIO.FastaIO import SimpleFastaParser
+    from Bio.SeqIO.QualityIO import FastqGeneralIterator
+    from fn import F
+except ImportError as err:
+    print(f'Missing dependencies: {err}')
+    sys.exit(1)
 
 FASTA = 'fasta'
 FASTQ = 'fastq'
@@ -95,9 +105,8 @@ def write(handle, format_, records: Iterable[Tuple]):
         raise ValueError(f'Unsupported format {format_}')
 
 
-@click.command('sjoin',
-               context_settings=dict(help_option_names=['-h', '--help']),
-               help=__doc__)
+@click.command('sjoin', help=__doc__,
+               context_settings=dict(help_option_names=['-h', '--help']))
 @click.option('-m', '--mapping',
               type=click.Path(exists=True, dir_okay=False, resolve_path=True),
               help='A tab-seperated headerless table. The first column '
