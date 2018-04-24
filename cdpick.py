@@ -1,3 +1,6 @@
+#! /usr/bin/env python
+
+
 """
 
 A wrapper script around cd-hit-est-2d for closed reference OTU-picking. Performs
@@ -32,9 +35,9 @@ CDHIT = 'cd-hit-est-2d'
 SEQID = re.compile('>(.+?)\.\.\.').findall
 
 
-def transform_cluster(cluster: Iterable[str]) -> Optional[List[str]]:
+def transform_cluster(noempty, cluster: Iterable[str]) -> Optional[List[str]]:
     seqids = [SEQID(line)[0] for line in cluster]
-    return seqids if len(seqids) > 1 else None
+    return (seqids if len(seqids) > 1 else None) if noempty else seqids
 
 
 def onpath(executable: str) -> bool:
@@ -83,8 +86,9 @@ def validate(validator: Callable[[A], bool], message: str, ctx, param: str,
               callback=F(validate, var >= 100, 'should be at least 100MB'),
               help='Maximum amount of RAM available to CD-HIT (must be at '
                    'least 100MB).')
+@click.option('-e', '--supress_empty', is_flag=True, default=False)
 def cdpick(input: str, reference: str, output: str, accurate: bool,
-           similarity: float, threads: int, memory: int):
+           similarity: float, threads: int, memory: int, supress_empty: bool):
     # make sure cdhit is available
     if not onpath(CDHIT):
         raise click.UsageError(
@@ -108,7 +112,7 @@ def cdpick(input: str, reference: str, output: str, accurate: bool,
                 F(map, str.strip) >> (filter, bool) >>
                 (lambda x: groupby(x, lambda l: l.startswith('>'))) >>
                 (filter, lambda x: not x[0]) >> (map, op.itemgetter(1)) >>
-                (map, transform_cluster) >> (filter, bool)
+                (map, F(transform_cluster, supress_empty)) >> (filter, bool)
             )(lines)
             for clust in clusters:
                 print('\t'.join(clust), file=out)
