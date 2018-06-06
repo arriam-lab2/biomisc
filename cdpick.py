@@ -76,7 +76,7 @@ def validate(validator: Callable[[A], bool], message: str, ctx, param: str,
                    'the most similar cluster that meet the threshold. This '
                    'might take several times more runtime, though.')
 @click.option('-s', '--similarity', type=float, default=0.97,
-              callback=F(validate, lambda v: 0.5 <= v <= 1, 'not in [0, 1]'),
+              callback=F(validate, lambda v: 0.5 <= v <= 1, 'not in [0.5, 1]'),
               help='Sequence similarity cutoff value; a floating point number '
                    'within [0.5, 1].')
 @click.option('-t', '--threads', type=int, default=1,
