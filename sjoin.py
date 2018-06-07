@@ -30,6 +30,7 @@ from typing import Iterator, Iterable, Callable, Mapping, Tuple
 
 try:
     import click
+    import tqdm
     from Bio.SeqIO.FastaIO import SimpleFastaParser
     from Bio.SeqIO.QualityIO import FastqGeneralIterator
     from fn import F
@@ -166,7 +167,7 @@ def sjoin(mapping, pattern, group, format, output_format, output, files):
         raise click.BadParameter(err)
     reads = chain.from_iterable(
         ((name, seq, *qual) for _, seq, *qual in records) for name, records in
-        zip(samples.keys(), map(F(parse, format), samples.values()))
+        zip(tqdm.tqdm(samples.keys()), map(F(parse, format), samples.values()))
     )
     try:
         if not output:
