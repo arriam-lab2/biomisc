@@ -1,9 +1,6 @@
-from typing import NamedTuple, Callable, List, Union, TypeVar, Generic, Optional, Iterable, Type, Sequence
-from functools import reduce
-import abc
 import inspect
-
-from fn import F, op
+from functools import reduce
+from typing import Callable, TypeVar, Generic, Type
 
 # declare types
 
