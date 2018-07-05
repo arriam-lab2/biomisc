@@ -1,7 +1,9 @@
-from typing import NamedTuple, Callable, List, Union, TypeVar, Generic, Optional, Iterable, Type
-import functools
+from typing import NamedTuple, Callable, List, Union, TypeVar, Generic, Optional, Iterable, Type, Sequence
+from functools import reduce
 import abc
 import inspect
+
+from fn import F, op
 
 # declare types
 
@@ -16,32 +18,39 @@ C = TypeVar('C')
 # TODO use a proper Maybe monad implementation instead of Optional
 # TODO add default implementation to Processor's `compatible` and  `__rshift__`
 
-class Processor(Generic[A, B], metaclass=abc.ABCMeta):
+class Processor(Generic[A, B]):
 
-    @abc.abstractmethod
-    def __repr__(self):
-        pass
+    def __init__(self, f: Callable[[A], B], argtype: Type, rettype: Type,
+                 argtype_validator: Callable[[Type], bool]=None):
+        # TODO verify basic signature properties of `f` and `validator`
+        # TODO maybe we should only accept callables with proper annotations
+        # to avoid explicit argtype/rettype parameters?
+        self._functions = (f,)
+        self._argtype = argtype
+        self._rettype = rettype
+        self._validator = (
+                argtype_validator or (lambda v: issubclass(v, self._argtype))
+        )
 
-    @abc.abstractmethod
+    def __str__(self):
+        return f'({self._argtype}) -> {self._rettype}'
+
     def __call__(self, data: A) -> B:
-        pass
+        return reduce(lambda val, f: f(val), self._functions, data)
 
-    @abc.abstractmethod
-    def __rshift__(self, other: 'Processor[B, C]') -> 'Processor[A, C]':
-        pass
-
-    @abc.abstractmethod
-    def compatible(self, data: Type[A]) -> bool:
-        """
-        Can this processor accept value of Type[A]?
-        :param data:
-        :return:
-        """
-        pass
+    def __rshift__(self, acceptor: 'Processor[B, C]') -> 'Processor[A, C]':
+        if not acceptor._validator(self._rettype):
+            raise TypeError(f'{self} is not compatible with {acceptor}')
+        composed = self.__new__(type(self))
+        composed._functions = (*self._functions, *acceptor._functions)
+        composed._argtype = self._argtype
+        composed._rettype = acceptor._rettype
+        composed._validator = self._validator
+        return composed
 
 
 # external prototype for Processor's compatible
-def composable(a: Callable[[A], B], b: Callable[[B], C]) -> bool:
+def _composable(a: Callable[[A], B], b: Callable[[B], C]) -> bool:
     """
     Make sure functions `a` and `b` can be composed, i.e. (a . b)(x) := b(a(x))
     type-checks. In other words, make sure the functions actually conform to
@@ -50,13 +59,13 @@ def composable(a: Callable[[A], B], b: Callable[[B], C]) -> bool:
     >>> def f(x: int) -> str: pass
     >>> def g(x: int) -> None: pass
     >>> def h(x: str) -> int: pass
-    >>> composable(f, g)
+    >>> _composable(f, g)
     False
-    >>> composable(f, h)
+    >>> _composable(f, h)
     True
-    >>> composable(g, h)
+    >>> _composable(g, h)
     False
-    >>> composable(h, g)
+    >>> _composable(h, g)
     True
     """
     rettype = inspect.signature(a).return_annotation
