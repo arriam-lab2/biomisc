@@ -9,9 +9,7 @@ Mappings = NamedTuple('Tables', [
     ('names', List[str]), ('mappings', List[str])
 ])
 
-
 Samples = Union[Reads, Mappings]
-
 
 if __name__ == '__main__':
     raise RuntimeError

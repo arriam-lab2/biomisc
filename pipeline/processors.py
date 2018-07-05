@@ -20,13 +20,12 @@ class Processor(Generic[A, B]):
     def __init__(self, f: Callable[[A], B], argtype: Type, rettype: Type,
                  argtype_validator: Callable[[Type], bool]=None):
         # TODO verify basic signature properties of `f` and `validator`
-        # TODO maybe we should only accept callables with proper annotations
-        # to avoid explicit argtype/rettype parameters?
+        # TODO maybe we shouldn't use default type validators?
         self._functions = (f,)
         self._argtype = argtype
         self._rettype = rettype
         self._validator = (
-                argtype_validator or (lambda v: issubclass(v, self._argtype))
+            argtype_validator or (lambda v: issubclass(v, self._argtype))
         )
 
     def __str__(self):
