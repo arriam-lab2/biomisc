@@ -9,15 +9,21 @@ B = TypeVar('B')
 C = TypeVar('C')
 
 
-Reads = NamedTuple('Reads', [
-    ('names', List[str]), ('r1', List[str]), ('r2', Optional[List[str]])
+ReadSample = NamedTuple('ReadSample', [
+    ('name', str), ('r1', str), ('r2', str)
 ])
 
-Mappings = NamedTuple('Tables', [
-    ('names', List[str]), ('mappings', List[str])
+MultipleReadSamples = NamedTuple('MultipleReadSamples', [
+    ('samples', List[ReadSample])
 ])
 
-Samples = Union[Reads, Mappings]
+MappedSample = NamedTuple('MappedSample', [
+    ('name', str), ('mapping', str)
+])
+
+MultupeMappedSamples = NamedTuple('MappedSample', [
+    ('samples', List[MappedSample])
+])
 
 
 # TODO implement a RAII resource model for data types

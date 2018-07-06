@@ -21,7 +21,7 @@ from typing import Iterable, Optional, List, Union, Tuple
 
 from fn import F
 
-from pipeline import util
+from pipeline import util, core
 
 CDHIT = 'cd-hit-est-2d'
 GZIP = 'gzip'
@@ -35,9 +35,21 @@ def transform_cluster(noempty, cluster: Iterable[str]) -> Optional[List[str]]:
     return (seqids if len(seqids) > 1 else None) if noempty else seqids
 
 
-def pick(reference: str, accurate: bool, similarity: float, threads: int,
-         memory: int, supress_empty: bool,
-         input: Union[Tuple[str], Tuple[str, str]], output: str):
+def cdhit(tmpdir: str, reference: str, accurate: bool, similarity: float,
+          threads: int, memory: int, supress_empty: bool,
+          input: Union[Tuple[str], Tuple[str, str]], output: str):
+    """
+    A wrapper for cd-hit-est-2d. Adds compressed input support
+    :param reference:
+    :param accurate:
+    :param similarity:
+    :param threads:
+    :param memory:
+    :param supress_empty:
+    :param input:
+    :param output:
+    :return:
+    """
     # make sure cdhit and gzip are available
     if not util.onpath(CDHIT):
         raise RuntimeError(
@@ -47,12 +59,16 @@ def pick(reference: str, accurate: bool, similarity: float, threads: int,
         raise RuntimeError(
             'No gzip executable found; is it on your PATH?'
         )
+    if not os.path.exists(tmpdir):
+        raise ValueError(
+            f'directory {tmpdir}, specified as tmpdir, does not exist'
+        )
     # check input compression status
     uncompressed = []
     with ExitStack() as stack:
         for path in input:
             if util.isgzipped(path):
-                buffer = tempfile.NamedTemporaryFile(dir='')
+                buffer = tempfile.NamedTemporaryFile(dir=tmpdir)
                 stack.enter_context(buffer)
                 sp.run([util.ENV, 'gzip', '-df', path], stdout=buffer)
                 buffer.flush()
@@ -61,7 +77,7 @@ def pick(reference: str, accurate: bool, similarity: float, threads: int,
                 uncompressed.append(path)
 
         base = os.path.splitext(os.path.basename(output))[0]
-        clusters = f'{base}.clstr'
+        clusters = os.path.join(tmpdir, f'{base}.clstr')
         command = [
             util.ENV, CDHIT, '-i', reference, '-c', str(similarity),
             '-g', str(int(accurate)), '-T', str(threads), '-M', str(memory),
