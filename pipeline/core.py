@@ -25,6 +25,9 @@ MultupeMappedSamples = NamedTuple('MappedSample', [
     ('samples', List[MappedSample])
 ])
 
+Reads = Union[ReadSample, MultipleReadSamples]
+Mappings = Union[MappedSample, MultupeMappedSamples]
+
 
 # TODO implement a RAII resource model for data types
 # TODO use a proper Maybe monad implementation instead of Optional

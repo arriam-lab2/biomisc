@@ -30,9 +30,15 @@ SEQID = re.compile('>(.+?)\.\.\.').findall
 
 # TODO add an import-time warnings about cd-hit's and/or gzip's absence
 
-def transform_cluster(noempty, cluster: Iterable[str]) -> Optional[List[str]]:
+def transform_cluster(noempty: bool, cluster: Iterable[str]) -> Optional[List[str]]:
     seqids = [SEQID(line)[0] for line in cluster]
     return (seqids if len(seqids) > 1 else None) if noempty else seqids
+
+
+def cdpick(tmpdir: str, reference: str, accurate: bool, similarity: float,
+           threads: int, memory: int, supress_empty: bool,
+           samples: core.Reads, output: str) -> core.Mappings:
+    pass
 
 
 def cdhit(tmpdir: str, reference: str, accurate: bool, similarity: float,
@@ -65,8 +71,10 @@ def cdhit(tmpdir: str, reference: str, accurate: bool, similarity: float,
         )
     # check input compression status
     uncompressed = []
+    # make sure all temporary decompressed files are removed
     with ExitStack() as stack:
         for path in input:
+            # if gzipped, make a temporary decompressed file
             if util.isgzipped(path):
                 buffer = tempfile.NamedTemporaryFile(dir=tmpdir)
                 stack.enter_context(buffer)
@@ -81,7 +89,7 @@ def cdhit(tmpdir: str, reference: str, accurate: bool, similarity: float,
         command = [
             util.ENV, CDHIT, '-i', reference, '-c', str(similarity),
             '-g', str(int(accurate)), '-T', str(threads), '-M', str(memory),
-            '-o', base, *chain(*zip(('-i2', '-j2'), uncompressed))
+            '-o', base, *chain(*zip(['-i2', '-j2'], uncompressed))
         ]
         process = sp.run(command)
         if process.returncode:
