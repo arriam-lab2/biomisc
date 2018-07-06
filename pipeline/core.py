@@ -1,15 +1,23 @@
 import inspect
 from functools import reduce
-from typing import Callable, TypeVar, Generic, Type
+from typing import NamedTuple, List, Optional, Union, TypeVar, Generic, \
+    Callable, Type
 
-# declare types
-
-FASTA = 'FASTA'
-FASTQ = 'FASTQ'
 
 A = TypeVar('A')
 B = TypeVar('B')
 C = TypeVar('C')
+
+
+Reads = NamedTuple('Reads', [
+    ('names', List[str]), ('r1', List[str]), ('r2', Optional[List[str]])
+])
+
+Mappings = NamedTuple('Tables', [
+    ('names', List[str]), ('mappings', List[str])
+])
+
+Samples = Union[Reads, Mappings]
 
 
 # TODO use a proper Maybe monad implementation instead of Optional
@@ -45,7 +53,6 @@ class Processor(Generic[A, B]):
         return composed
 
 
-# external prototype for Processor's compatible
 def _composable(a: Callable[[A], B], b: Callable[[B], C]) -> bool:
     """
     Make sure functions `a` and `b` can be composed, i.e. (a . b)(x) := b(a(x))

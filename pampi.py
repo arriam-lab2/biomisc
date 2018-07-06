@@ -7,7 +7,7 @@ from typing import List, Callable, TypeVar
 import click
 from fn import F, _ as X
 
-from pipeline import processors, data
+from pipeline import core, processors
 
 # TODO load dtype converters
 # TODO load dtype specs dynamically
@@ -33,12 +33,12 @@ def validate(validator: Callable[[A], bool], message: str, ctx, param: str,
               callback=F(validate, lambda v: os.path.exists(v),
                          'tmpdir does not exist'),
               help='Temporary directory location')
-def pampi(input: data.Samples, tempdir: str):
+def pampi(input: core.Samples, tempdir: str):
     pass
 
 
 @pampi.resultcallback()
-def pipeline(processors: List[processors.Processor], input: data.Samples, tempdir: str):
+def pipeline(processors: List[core.Processor], input: core.Samples, tempdir: str):
     # TODO handle compilation type error
     with tempfile.TemporaryDirectory(dir=tempdir) as root:
         os.chdir(root)
