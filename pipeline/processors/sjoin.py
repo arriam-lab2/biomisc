@@ -17,6 +17,8 @@ read from sample S2, read S2_j maps directly to the (j-i)-th read in S2.fastq.
 
 import sys
 
+from pipeline import util
+
 if sys.version_info < (3, 6):
     print('This tool requires Python >= 3.6')
     sys.exit(1)
@@ -72,12 +74,7 @@ def make_extractor(pattern: str, group: bool) -> Callable[[str], str]:
     return F(os.path.basename) >> ext >> op.itemgetter(0)
 
 
-def isgzipped(path: str) -> bool:
-    with open(path, 'rb') as buffer:
-        return buffer.read(3) == b'\x1f\x8b\x08'
-
-
-def parse(format_, path) -> Iterator[Tuple[str, str]]:
+def fparse(format_, path) -> Iterator[Tuple[str, str]]:
     """
     Parse a fasta/fastq file and return a generator of (name, sequence) pairs.
     The file can be gzipped. Compression is inferred from the file content.
@@ -87,7 +84,7 @@ def parse(format_, path) -> Iterator[Tuple[str, str]]:
     """
     try:
         parser = FastqGeneralIterator if format_ == FASTQ else SimpleFastaParser
-        with (gzip.open(path, 'rt') if isgzipped(path) else open(path)) as buffer:
+        with (gzip.open(path, 'rt') if util.isgzipped(path) else open(path)) as buffer:
             yield from parser(buffer)
     except (TypeError, ValueError):
         raise BadSample(f'bad {format_} file {path}')
@@ -167,7 +164,7 @@ def sjoin(mapping, pattern, group, format, output_format, output, files):
         raise click.BadParameter(err)
     reads = chain.from_iterable(
         ((name, seq, *qual) for _, seq, *qual in records) for name, records in
-        zip(tqdm.tqdm(samples.keys()), map(F(parse, format), samples.values()))
+        zip(tqdm.tqdm(samples.keys()), map(F(fparse, format), samples.values()))
     )
     try:
         if not output:

@@ -20,6 +20,7 @@ Mappings = NamedTuple('Tables', [
 Samples = Union[Reads, Mappings]
 
 
+# TODO implement a RAII resource model for data types
 # TODO use a proper Maybe monad implementation instead of Optional
 # TODO add default implementation to Processor's `compatible` and  `__rshift__`
 

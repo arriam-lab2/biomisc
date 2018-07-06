@@ -12,9 +12,11 @@ from pipeline import core, processors
 # TODO load dtype converters
 # TODO load dtype specs dynamically
 # TODO load processor specs dynamically
-
+# TODO use random names for temporary output
 
 TMPDIR = 'tmpdir'
+FASTA = 'FASTA'
+FASTQ = 'FASTQ'
 
 A = TypeVar('A')
 
@@ -33,7 +35,7 @@ def validate(validator: Callable[[A], bool], message: str, ctx, param: str,
               callback=F(validate, lambda v: os.path.exists(v),
                          'tmpdir does not exist'),
               help='Temporary directory location')
-def pampi(input: core.Samples, tempdir: str):
+def pampi(input: core.Samples, tempdir: str, pattern, group):
     pass
 
 
@@ -41,18 +43,40 @@ def pampi(input: core.Samples, tempdir: str):
 def pipeline(processors: List[core.Processor], input: core.Samples, tempdir: str):
     # TODO handle compilation type error
     with tempfile.TemporaryDirectory(dir=tempdir) as root:
-        os.chdir(root)
+        os.chdir(root.name)
         reduce(op.rshift, processors)(input)
 
 
+# TODO add validators
+
 @pampi.command('qc')
 @click.pass_context
+@click.option('-l', '--minlen', type=int)
+@click.option('-q', '--minqual', type=str, help='e.g. 18:3')  # TODO document
+@click.option('-c', '--head_crop', type=int)
+@click.option('-o', '--output', required=True,
+              type=click.Path(exists=False, resolve_path=True),
+              callback=F(validate, lambda v: not os.path.exists(v),
+                         'output destination exists'),
+              help='Output destination.')
 def qc():
     pass
 
 
 @pampi.command('join')
 @click.pass_context
+@click.option('-o', '--output', required=True,
+              type=click.Path(exists=False, resolve_path=True),
+              callback=F(validate, lambda v: not os.path.exists(v),
+                         'output exists'),
+              help='Output destination.')
+@click.option('-p', '--pattern', type=str,
+              help='A Python regular expression. By default the expression '
+                   'is used to split basenames and select the first value in '
+                   'the split. You might instead want to use a group regex to '
+                   'extract the first occurrence of the group by specifying '
+                   'the --group flag')
+@click.option('--group', is_flag=True, default=False)
 def join():
     pass
 
@@ -79,6 +103,11 @@ def join():
               help='Maximum amount of RAM available to CD-HIT (must be at '
                    'least 100MB).')
 @click.option('-e', '--supress_empty', is_flag=True, default=False)
+@click.option('-o', '--output', required=True,
+              type=click.Path(exists=False, dir_okay=False, resolve_path=True),
+              callback=F(validate, lambda v: not os.path.exists(v),
+                         'output exists'),
+              help='Output destination.')
 def pick():
     pass
 

@@ -10,101 +10,66 @@ global alignment.
 
 """
 
-import sys
-
-if sys.version_info < (3, 6):
-    print('This tool requires Python >= 3.6')
-    sys.exit(1)
-
-from typing import TypeVar, Callable, Iterable, Optional, List
-from itertools import groupby
-import subprocess as sp
+from contextlib import ExitStack
 import operator as op
-import tempfile
 import os
 import re
+import tempfile
+import subprocess as sp
+from itertools import groupby, chain
+from typing import Iterable, Optional, List, Union, Tuple
 
-import click
-from fn import F, _ as var
+from fn import F
 
-A = TypeVar('A')
-DEVNULL = open(os.devnull, 'w')
-ENV = '/usr/bin/env'
-QUITE = dict(stdout=DEVNULL, stderr=sp.STDOUT)
+from pipeline import util
+
 CDHIT = 'cd-hit-est-2d'
+GZIP = 'gzip'
 SEQID = re.compile('>(.+?)\.\.\.').findall
 
+
+# TODO add an import-time warnings about cd-hit's and/or gzip's absence
 
 def transform_cluster(noempty, cluster: Iterable[str]) -> Optional[List[str]]:
     seqids = [SEQID(line)[0] for line in cluster]
     return (seqids if len(seqids) > 1 else None) if noempty else seqids
 
 
-def onpath(executable: str) -> bool:
-    """
-    Can /usr/bin/env find the executable?
-    :param executable: an executable to find
-    :return:
-    """
-    return sp.run([ENV, executable], **QUITE).returncode != 127
-
-
-def validate(validator: Callable[[A], bool], message: str, ctx, param: str,
-             value: A):
-    if not validator(value):
-        raise click.BadParameter(message, ctx=ctx, param=param)
-    return value
-
-
-@click.command('cdpick', help=__doc__,
-               context_settings=dict(help_option_names=['-h', '--help']))
-@click.option('-i', '--input', required=True,
-              type=click.Path(exists=True, dir_okay=False, resolve_path=True),
-              help='A FASTA file to map')
-@click.option('-r', '--reference', required=True,
-              type=click.Path(exists=True, dir_okay=False, resolve_path=True),
-              help='Reference dataset (FASTA or FASTQ)')
-@click.option('-o', '--output', required=True,
-              type=click.Path(exists=False, dir_okay=False, resolve_path=True),
-              callback=F(validate, lambda v: not os.path.exists(v),
-                         'output exists'),
-              help='Output destination.')
-@click.option('-a', '--accurate', is_flag=True, default=False,
-              help='Run in accurate mode. By default, a sequence is clustered '
-                   'to the first cluster that meet the threshold (fast '
-                   'cluster). In this mode the program will cluster it into '
-                   'the most similar cluster that meet the threshold. This '
-                   'might take several times more runtime, though.')
-@click.option('-s', '--similarity', type=float, default=0.97,
-              callback=F(validate, lambda v: 0.5 <= v <= 1, 'not in [0.5, 1]'),
-              help='Sequence similarity cutoff value; a floating point number '
-                   'within [0.5, 1].')
-@click.option('-t', '--threads', type=int, default=1,
-              callback=F(validate, var > 0, 'must be positive'),
-              help='The number of CPU threads to use.')
-@click.option('-m', '--memory', type=int, default=1000,
-              callback=F(validate, var >= 100, 'should be at least 100MB'),
-              help='Maximum amount of RAM available to CD-HIT (must be at '
-                   'least 100MB).')
-@click.option('-e', '--supress_empty', is_flag=True, default=False)
-def cdpick(input: str, reference: str, output: str, accurate: bool,
-           similarity: float, threads: int, memory: int, supress_empty: bool):
-    # make sure cdhit is available
-    if not onpath(CDHIT):
-        raise click.UsageError(
+def pick(reference: str, accurate: bool, similarity: float, threads: int,
+         memory: int, supress_empty: bool,
+         input: Union[Tuple[str], Tuple[str, str]], output: str):
+    # make sure cdhit and gzip are available
+    if not util.onpath(CDHIT):
+        raise RuntimeError(
             'No cd-hit-est-2d executable found; is it on your PATH?'
         )
-    with tempfile.TemporaryDirectory() as root:
-        base = os.path.join(root, os.path.splitext(os.path.basename(output))[0])
+    if not util.onpath(GZIP):
+        raise RuntimeError(
+            'No gzip executable found; is it on your PATH?'
+        )
+    # check input compression status
+    uncompressed = []
+    with ExitStack() as stack:
+        for path in input:
+            if util.isgzipped(path):
+                buffer = tempfile.NamedTemporaryFile(dir='')
+                stack.enter_context(buffer)
+                sp.run([util.ENV, 'gzip', '-df', path], stdout=buffer)
+                buffer.flush()
+                uncompressed.append(buffer.name)
+            else:
+                uncompressed.append(path)
+
+        base = os.path.splitext(os.path.basename(output))[0]
         clusters = f'{base}.clstr'
         command = [
-            ENV, CDHIT, '-i', reference, '-c', str(similarity),
+            util.ENV, CDHIT, '-i', reference, '-c', str(similarity),
             '-g', str(int(accurate)), '-T', str(threads), '-M', str(memory),
-            '-o', base, '-i2', input
+            '-o', base, *chain(*zip(('-i2', '-j2'), uncompressed))
         ]
         process = sp.run(command)
         if process.returncode:
-            raise click.ClickException(
+            raise RuntimeError(
                 'CD-HIT failed; please, read its error logs for more details'
             )
         with open(clusters) as lines, open(output, 'w') as out:
@@ -119,4 +84,4 @@ def cdpick(input: str, reference: str, output: str, accurate: bool,
 
 
 if __name__ == '__main__':
-    cdpick()
+    raise RuntimeError
