@@ -40,6 +40,10 @@ _redundant: Callable[[Iterable['Map']], bool] = (
 )
 
 
+class RedundancyError(ValueError):
+    pass
+
+
 class Map(Generic[A, B]):
 
     def __init__(self, domain: Type[A], codomain: Type[B], f: Callable[[A], B]):
@@ -87,13 +91,18 @@ class Map(Generic[A, B]):
         return self.domain, self.codomain
 
     def __repr__(self):
-        return f'({self.domain}) -> {self.codomain}'
+        # TODO maybe we should show show type reprs instead of their names?
+        try:
+            return f'({self.domain.__name__}) -> {self.codomain.__name__}'
+        except AttributeError:
+            return f'({self.domain}) -> {self.codomain}'
 
     def __call__(self, value: A) -> B:
         return self._f(value)
 
     def __rshift__(self, other: 'Map[B, C]') -> 'Map[A, C]':
         if not isinstance(other, type(self)):
+            # TODO maybe we should show type(self) instead of its name?
             raise ValueError(
                 f'right-hand operand is not an instance of '
                 f'{type(self).__name__}'
@@ -117,7 +126,7 @@ class Router:
         if not all(isinstance(m, Map) for m in maps):
             raise ValueError(f'not all maps are {Map.__name__} instances')
         if _redundant(self._maps):
-            raise ValueError('mappings are redundant')
+            raise RedundancyError('mappings are redundant')
 
     @property
     def name(self) -> str:
@@ -162,7 +171,6 @@ class Router:
             return Router(name, [])
         left = self.constrain(None, other.domains)
         right = other.constrain(left.codomains, None)
-        # TODO replace signmatch with somethign appropriate
         compositions = (
             F(product) >> (filter, F(_starapply, _composable)) >>
             (starmap, op.rshift) >> list
@@ -193,7 +201,7 @@ class Router:
         return type(self)(self.name, mappings)
 
 
-def compile(routers: List[Router], input: Type[A], output: Type[B]) \
+def pcompile(routers: List[Router], input: Type[A], output: Type[B]) \
         -> Callable[[A], B]:
     """
     Compile a path from input node to the output node
@@ -209,18 +217,17 @@ def compile(routers: List[Router], input: Type[A], output: Type[B]) \
         constrained = routers[0].constrain([input], [output])
     else:
         head, *tail = routers
-        composed: Router = reduce(op.rshift, tail, head.constrain([input], None))
+        try:
+            composed: Router = reduce(op.rshift, tail, head.constrain([input], None))
+        except RedundancyError:
+            raise ValueError(
+                f'there are several valid routes from {input.__name__} to '
+                f'{output.__name__}'
+            )
         constrained = composed.constrain(None, [output])
     if not constrained:
         raise ValueError(
             f'there is no route from {input.__name__} to {output.__name__}'
-        )
-    if len(constrained) > 1:
-        # TODO maybe we should convert this into a warning and/or ...
-        # TODO ... make it possible to turn this behaviour off?
-        raise ValueError(
-            f'there are several valid routes from {input.__name__} to '
-            f'{output.__name__}'
         )
     return constrained.maps[0]
 
