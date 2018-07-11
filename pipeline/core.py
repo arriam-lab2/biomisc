@@ -22,6 +22,7 @@ POS_ARGS = frozenset(
 _starapply: Callable[[Callable[..., A], Iterable], A] = lambda f, x: f(*x)
 
 # TODO research a way to relax the algebraic type system within Python
+# TODO https://github.com/HypothesisWorks/hypothesis/pull/643 (as an example)
 # abstract away type compatibility check to not depend on its implementation
 _typematch: Union[Callable[[Type, Type], bool]] = op.is_
 
