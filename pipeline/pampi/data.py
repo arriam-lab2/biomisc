@@ -1,5 +1,5 @@
 from typing import Optional, Union, Tuple, Callable, Sequence, Iterable, TypeVar, List, NamedTuple
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, suppress
 from itertools import filterfalse
 import abc
 import os
@@ -47,9 +47,13 @@ class VolatileResource(AbstractContextManager, metaclass=abc.ABCMeta):
 
 # TODO refactor into a SampleFiles base class
 
-class SampleFiles(VolatileResource):
 
-    def __init__(self, name: str, *files):
+class SampleFiles(VolatileResource):
+    """
+    The class is Maybe-like
+    """
+
+    def __init__(self, name: str, *files, delete=True):
         missing = _missing(files)
         if missing:
             raise FileNotFoundError(f'missing read file(s): {missing}')
@@ -58,10 +62,14 @@ class SampleFiles(VolatileResource):
             raise ValueError(f'the following paths {nonfile} are not files')
         self._name = name
         self._files = files
-        self._released = False
+        self._released = not files
+        self._delete = delete
 
     def __repr__(self):
         return f'{type(self).__name__}({self.name}, ...)'
+
+    def __bool__(self):
+        return self.released or not self.files
 
     @property
     def name(self) -> str:
@@ -80,14 +88,12 @@ class SampleFiles(VolatileResource):
         return self._released
 
     def release(self):
-        if not self.released:
-            try:
-                for fname in self.files:
+        if not self.released and self._delete:
+            for fname in self.files:
+                with suppress(FileNotFoundError):
                     os.remove(fname)
-            except FileNotFoundError:
                 # TODO maybe we should throw a warning?
-                pass
-            self._released = True
+        self._released = True
 
 
 class SampleReads(SampleFiles):
@@ -119,7 +125,7 @@ MultipleSampleReads = NamedTuple('MultipleSampleReads', [
 ])
 
 MultipleSampleClusters = NamedTuple('MultipleSampleClusters', [
-    ('samples', List[SampleClusters])
+    ('samples', List[Optional[SampleClusters]])
 ])
 
 if __name__ == '__main__':
