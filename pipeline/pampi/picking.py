@@ -11,7 +11,7 @@ from typing import Iterable, Optional, List, Union, Tuple
 from fn import F
 
 from pipeline import core
-from pipeline.pampi import util
+from pipeline.pampi import util, data
 
 
 CDHIT = 'cd-hit-est-2d'
@@ -76,6 +76,32 @@ def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
             'CD-HIT failed; please, read its error logs for more details'
         )
     return output, clusters
+
+
+# TODO add a nondesctructive debug mode?
+@util.fallible(RuntimeError, FileNotFoundError)
+def cdpick(tmpdir: str, input: data.SampleReads, output: Optional[str],
+           drop_empty: bool, **cdhit_options) -> Optional[data.SampleClusters]:
+    if not os.path.exists(tmpdir):
+        raise ValueError(f'temporary directory {tmpdir} does not exist')
+    output_ = util.randname(tmpdir, '') if output is None else output
+    cdhit_tempout = util.randname(tmpdir, '')
+    with input:
+        reads: Union[Tuple[str], Tuple[str, str]] = input.files
+        seqs, clusterfile = cdhit(input=reads, output=cdhit_tempout,
+                                  **cdhit_options)
+        # parse raw cd-hit clusters and write it into output_
+        with open(clusterfile) as cluster_handle, open(output_, 'w') as out:
+            for cluster in parse_cdhit_clusters(drop_empty, cluster_handle):
+                print('\t'.join(cluster), file=out)
+        # delete temporary cd-hit files
+        os.remove(seqs)
+        os.remove(clusterfile)
+        # a specified output destination means that output files can be observed
+        # by the callee and their destruction should not be subject to any
+        # race conditions
+        return data.SampleClusters(input.name, clusters=output_,
+                                   delete=output is None)
 
 
 if __name__ == '__main__':

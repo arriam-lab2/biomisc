@@ -3,9 +3,13 @@ import contextlib
 import tempfile
 import logging
 import shutil
+import uuid
 import os
+from itertools import repeat, filterfalse
 from functools import wraps
 from typing import Callable, TypeVar, Optional, Sequence
+
+from fn import F
 
 
 DEVNULL = open(os.devnull, 'w')
@@ -14,6 +18,24 @@ GZIP = 'gzip'
 QUITE = dict(stdout=DEVNULL, stderr=sp.STDOUT)
 
 A = TypeVar('A')
+
+
+def randname(dirname: str, ext: str) -> str:
+    """
+    Generate a random file name. Ensures that such a name does not exist in
+    the file system
+    at the call-time
+    :param dirname: specify a root directory
+    :param ext: file extension
+    :return:
+    """
+    return (
+        F(map, str) >>
+        (map, F(os.path.join, dirname)) >>
+        (map, lambda x: x+ext) >>
+        (filterfalse, os.path.exists) >>
+        next
+    )(uuid.uuid4() for _ in repeat(None))
 
 
 # TODO replace this temporary lifting solution for Optionals with proper monads
@@ -56,7 +78,7 @@ def ungzipped(*paths, tmpdir=tempfile.gettempdir()) -> Sequence[str]:
     decompressed file which will be erased upon exit from the context manager.
     :param paths:
     :param tmpdir: a location for temporary decompressed files
-    :return:
+    :return: a sequence of file path strings
     """
     # TODO consider defaulting to the built-in gzip in this case
     gzip_exec = shutil.which(GZIP)

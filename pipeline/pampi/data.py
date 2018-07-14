@@ -45,9 +45,7 @@ class VolatileResource(AbstractContextManager, metaclass=abc.ABCMeta):
         self.release()
 
 
-# TODO refactor into a SampleFiles base class
-
-
+# TODO make this class a real Maybe-like monad with an Empty instance
 class SampleFiles(VolatileResource):
     """
     The class is Maybe-like
@@ -98,9 +96,10 @@ class SampleFiles(VolatileResource):
 
 class SampleReads(SampleFiles):
 
-    def __init__(self, name: str, forward: str, reverse: Optional[str]=None):
+    def __init__(self, name: str, forward: str, reverse: Optional[str]=None,
+                 delete=True):
         reads = (forward, reverse) if reverse else (forward,)
-        super().__init__(name, *reads)
+        super().__init__(name, *reads, delete=delete)
         self._paired = reverse is not None
 
     @property
@@ -110,8 +109,8 @@ class SampleReads(SampleFiles):
 
 class SampleClusters(SampleFiles):
 
-    def __init__(self, name: str, clusters: str):
-        super().__init__(name, clusters)
+    def __init__(self, name: str, clusters: str, delete=True):
+        super().__init__(name, clusters, delete=delete)
 
     @property
     def clusters(self) -> Optional[str]:
