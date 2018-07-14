@@ -7,37 +7,43 @@ from typing import List, Callable, TypeVar
 import click
 from fn import F, _ as X
 
+from pipeline import core
+from pipeline.pampi import data, picking, util
+
 
 TMPDIR = 'tmpdir'
 FASTQ = 'FASTQ'
 FASTA = 'FASTA'
 
 A = TypeVar('A')
+B = TypeVar('B')
 
 
-def validate(validator: Callable[[A], bool], message: str, ctx, param: str,
-             value: A):
-    if not validator(value):
+def validate(f: Callable[[A], bool], message: str, ctx, param: str, value: A):
+    if not f(value):
         raise click.BadParameter(message, ctx=ctx, param=param)
     return value
 
 
 @click.group(chain=True, invoke_without_command=True)
 @click.option('-i', '--input', required=True)
+@click.option('-d', '--dtype', required=True,
+              help='Initial data type')
 @click.option('-t', '--tempdir', default=tempfile.gettempdir(),
-              type=click.Path(exists=False, dir_okay=False, resolve_path=True),
-              callback=F(validate, lambda v: os.path.exists(v),
-                         'tmpdir does not exist'),
+              type=click.Path(exists=False, dir_okay=True, resolve_path=True),
+              callback=F(validate, lambda v: os.path.isdir(v),
+                         'tempdir is not a directory or does not exist'),
               help='Temporary directory location')
-def pampi(input, tempdir, pattern, group):
-    pass
+@click.pass_context
+def pampi(ctx, input, tempdir):
+    ctx[TMPDIR] = tempdir
 
 
 @pampi.resultcallback()
-def pipeline(processors, input, tempdir: str):
+@click.pass_context
+def pipeline(ctx, processors: List[core.Router], input, *_):
     # TODO handle compilation type error
-    with tempfile.TemporaryDirectory(dir=tempdir) as root:
-        pass
+    pass
 
 
 # TODO add validators
@@ -52,7 +58,8 @@ def pipeline(processors, input, tempdir: str):
               callback=F(validate, lambda v: not os.path.exists(v),
                          'output destination exists'),
               help='Output destination.')
-def qc():
+@click.pass_context
+def qc(ctx):
     pass
 
 
@@ -70,7 +77,8 @@ def qc():
                    'extract the first occurrence of the group by specifying '
                    'the --group flag')
 @click.option('--group', is_flag=True, default=False)
-def join():
+@click.pass_context
+def join(ctx):
     pass
 
 
@@ -95,15 +103,26 @@ def join():
               callback=F(validate, X >= 100, 'should be at least 100MB'),
               help='Maximum amount of RAM available to CD-HIT (must be at '
                    'least 100MB).')
-@click.option('-e', '--supress_empty', is_flag=True, default=False)
-@click.option('-o', '--output', required=True,
-              type=click.Path(exists=False, dir_okay=False, resolve_path=True),
-              callback=F(validate, lambda v: not os.path.exists(v),
-                         'output exists'),
+@click.option('-e', '--drop_empty', is_flag=True, default=False,
+              help='delete empty output')
+@click.option('-o', '--outdir',
+              type=click.Path(exists=False, dir_okay=True, resolve_path=True),
+              callback=F(validate, os.path.isdir,
+                         'destination does not exist or is not a directory'),
               help='Output destination.')
-def pick():
-    pass
+@click.pass_context
+def pick(ctx, reference: str, accurate: bool, similarity: float, threads: int,
+         memory: int, drop_empty: bool, outdir: str):
+    options = dict(tmpdir=ctx[TMPDIR], outdir=outdir, drop_empty=drop_empty,
+                   reference=reference, accurate=accurate,
+                   similarity=similarity, threads=threads, memory=memory)
+    return core.Router('pick', [
+        core.Map(data.SampleReads, data.SampleClusters,
+                 F(picking.cdpick, **options)),
+        core.Map(data.MultipleSampleReads, data.MultipleSampleClusters,
+                 F(picking.cdpick_multiple, **options))
+    ])
 
 
 if __name__ == '__main__':
-    pampi()
+    pampi(obj={})
