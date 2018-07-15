@@ -79,7 +79,7 @@ def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
 
 # TODO add a nondesctructive debug mode?
 @util.fallible(RuntimeError, FileNotFoundError)
-def cdpick(tmpdir: str, input: data.SampleReads, outdir: Optional[str],
+def cdpick(tmpdir: str, input: data.SampleFasta, outdir: Optional[str],
            drop_empty: bool, **cdhit_options) -> Optional[data.SampleClusters]:
     if not os.path.exists(tmpdir):
         raise ValueError(f'temporary directory {tmpdir} does not exist')
@@ -105,7 +105,7 @@ def cdpick(tmpdir: str, input: data.SampleReads, outdir: Optional[str],
 
 
 @util.fallible(RuntimeError, FileNotFoundError)
-def cdpick_multiple(tmpdir: str, input: data.MultipleSampleReads,
+def cdpick_multiple(tmpdir: str, input: data.MultipleSampleFasta,
                     outdir: Optional[str], drop_empty: bool, **cdhit_options) \
         -> Optional[data.MultipleSampleClusters]:
 

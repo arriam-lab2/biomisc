@@ -1,8 +1,6 @@
-import operator as op
-import tempfile
 import os
-from functools import reduce, partial
-from typing import List, Callable, TypeVar, Mapping, Union, Tuple
+import tempfile
+from typing import List, Callable, TypeVar
 
 import click
 import pandas as pd
@@ -10,14 +8,12 @@ from fn import F, _ as X
 from fn.func import identity
 
 from pipeline import core
-from pipeline.pampi import data, picking, util
-
+from pipeline.pampi import data, picking
 
 CLUSTERS = 'clusters'
-READS = 'reads'
 TMPDIR = 'tmpdir'
-FASTQ = 'FASTQ'
-FASTA = 'FASTA'
+FASTQ = 'fastq'
+FASTA = 'fasta'
 
 A = TypeVar('A')
 B = TypeVar('B')
@@ -25,7 +21,8 @@ B = TypeVar('B')
 
 _INPUT_DTYPE_DISPATCH = {
     CLUSTERS: (data.SampleClusters, data.MultipleSampleClusters),
-    READS: (data.SampleReads, data.MultipleSampleReads)
+    FASTA: (data.SampleFasta, data.MultipleSampleFasta),
+    FASTQ: (data.SampleFastq, data.MultipleSampleFastq)
 }
 
 
@@ -46,6 +43,7 @@ def validate(f: Callable[[A], bool], transform: Callable[[A], B], message: str,
 _parse_input: Callable[[str], pd.DataFrame] = (
     lambda x: pd.read_csv(x, sep='\t', header=None, dtype=str)
 )
+# TODO !!!can't specify pe and se libraries in the same file!!!
 _input_paths_exist: Callable[[pd.DataFrame], bool] = (
     lambda df: len(df) and df.iloc[:, 1:].applymap(os.path.exists).all().all()
 )
@@ -61,7 +59,7 @@ _input_paths_exist: Callable[[pd.DataFrame], bool] = (
                          'not all paths specified in the input mapping exist '
                          'or the mapping is empty'))
 @click.option('-d', '--dtype', required=True,
-              type=click.Choice([CLUSTERS, READS]),
+              type=click.Choice([CLUSTERS, FASTA, FASTQ]),
               help='Initial data type')
 @click.option('-t', '--tempdir', default=tempfile.gettempdir(),
               type=click.Path(exists=False, dir_okay=True, resolve_path=True),
@@ -78,22 +76,17 @@ def pampi(ctx, input: pd.DataFrame, dtype: str, tempdir: str):
 def pipeline(ctx, routers: List[core.Router], input: pd.DataFrame, dtype, *_, **__):
     if not routers:
         exit()
-    # TODO streamline input conversion (replace manual type-inference with...
-    # TODO ... automatic predicate-dispatchers)
+    # TODO streamline input conversion
     # convert parsed data into an appropriate data type
-    sample_type = data.SampleReads if dtype == READS else data.SampleClusters
+    single_t, multiple_t = _INPUT_DTYPE_DISPATCH[dtype]
     try:
-        samples = [
-            sample_type(name, *files, delete=False)
+        samples = multiple_t([
+            single_t(name, *files, delete=False)
             for name, *files in input.itertuples(False)
-        ]
+        ])
     except TypeError:
         raise ValueError(f'input data are not compatible with data type {dtype}')
-    domain = _INPUT_DTYPE_DISPATCH[dtype][len(input) > 1]
-    # if len(samples) > 1 then domain is a Multiple type, making it necessary
-    # to wrap samples in it
-    input_ = domain(samples) if len(samples) > 1 else samples[0]
-    output = core.pcompile(routers, domain, None)(input_)
+    output = core.pcompile(routers, multiple_t, None)(samples)
 
 
 # TODO add validators
@@ -115,11 +108,6 @@ def qc(ctx):
 
 @pampi.command('join')
 @click.pass_context
-@click.option('-o', '--output', required=True,
-              type=click.Path(exists=False, resolve_path=True),
-              callback=F(validate, lambda v: not os.path.exists(v), identity,
-                         'output exists'),
-              help='Output destination.')
 @click.option('-p', '--pattern', type=str,
               help='A Python regular expression. By default the expression '
                    'is used to split basenames and select the first value in '
@@ -127,8 +115,17 @@ def qc(ctx):
                    'extract the first occurrence of the group by specifying '
                    'the --group flag')
 @click.option('--group', is_flag=True, default=False)
+@click.option('-of', '--output_format', type=click.Choice([FASTQ, FASTA]),
+              default=FASTA,
+              help='Output format. This option defaults to FASTA, because '
+                   'FASTQ output is only compatible with FASTQ input.')
+@click.option('-o', '--output', required=True,
+              type=click.Path(exists=False, dir_okay=False, resolve_path=True),
+              callback=F(validate, lambda v: not os.path.exists(v), identity,
+                         'output exists'),
+              help='Output destination.')
 @click.pass_context
-def join(ctx):
+def join(ctx, pattern, group, output_format, output):
     pass
 
 
@@ -170,10 +167,15 @@ def pick(ctx, reference: str, accurate: bool, similarity: float, threads: int,
                    similarity=similarity, threads=threads, memory=memory)
     print(options)
     return core.Router('pick', [
-        core.Map(data.SampleReads, data.SampleClusters,
+        core.Map(data.SampleFasta, data.SampleClusters,
                  lambda x: picking.cdpick(input=x, **options)),
-        core.Map(data.MultipleSampleReads, data.MultipleSampleClusters,
+        core.Map(data.MultipleSampleFasta, data.MultipleSampleClusters,
+                 lambda x: picking.cdpick_multiple(input=x, **options)),
+        core.Map(data.SampleFastq, data.SampleClusters,
+                 lambda x: picking.cdpick(input=x, **options)),
+        core.Map(data.MultipleSampleFastq, data.MultipleSampleClusters,
                  lambda x: picking.cdpick_multiple(input=x, **options))
+
     ])
 
 

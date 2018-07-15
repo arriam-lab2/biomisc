@@ -1,11 +1,11 @@
-from typing import Optional, Union, Tuple, Callable, Sequence, Iterable, TypeVar, List, NamedTuple
-from contextlib import AbstractContextManager, suppress
-from itertools import filterfalse
 import abc
 import os
+from contextlib import AbstractContextManager, suppress
+from itertools import filterfalse
+from typing import Optional, Callable, Sequence, Iterable, TypeVar, List, \
+    NamedTuple
 
 from fn import F
-
 
 A = TypeVar('A')
 
@@ -95,7 +95,7 @@ class SampleFiles(VolatileResource):
         self._released = True
 
 
-class SampleReads(SampleFiles):
+class SampleFasta(SampleFiles):
 
     def __init__(self, name: str, forward: str, reverse: Optional[str]=None,
                  delete=True):
@@ -106,6 +106,10 @@ class SampleReads(SampleFiles):
     @property
     def paired(self) -> bool:
         return self._paired
+
+
+class SampleFastq(SampleFasta):
+    pass
 
 
 class SampleClusters(SampleFiles):
@@ -120,8 +124,12 @@ class SampleClusters(SampleFiles):
 
 # TODO we might want to implement full-blown classes with init-time validation
 # to make sure MultipleSample* can't be initialised with released resources
-MultipleSampleReads = NamedTuple('MultipleSampleReads', [
-    ('samples', List[SampleReads])
+MultipleSampleFasta = NamedTuple('MultipleSampleFasta', [
+    ('samples', List[SampleFasta])
+])
+
+MultipleSampleFastq = NamedTuple('MultipleSampleFastq', [
+    ('samples', List[SampleFastq])
 ])
 
 MultipleSampleClusters = NamedTuple('MultipleSampleClusters', [

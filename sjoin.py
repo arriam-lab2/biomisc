@@ -17,16 +17,16 @@ read from sample S2, read S2_j maps directly to the (j-i)-th read in S2.fastq.
 
 import sys
 
+from pipeline.pampi.join import FASTA, FASTQ, BadSample, make_extractor, parse, \
+    write
+
 if sys.version_info < (3, 6):
     print('This tool requires Python >= 3.6')
     sys.exit(1)
 
 import gzip
-import operator as op
-import os
-import re
 from itertools import chain
-from typing import Iterator, Iterable, Callable, Mapping, Tuple
+from typing import Callable, Mapping
 
 try:
     import click
@@ -38,15 +38,8 @@ except ImportError as err:
     print(f'Missing dependencies: {err}')
     sys.exit(1)
 
-FASTA = 'fasta'
-FASTQ = 'fastq'
-
 
 class BadMapping(ValueError):
-    pass
-
-
-class BadSample(ValueError):
     pass
 
 
@@ -67,43 +60,9 @@ def build_mapping(nameext: Callable[[str], str], files) -> Mapping[str, str]:
     return dict(zip(names, files))
 
 
-def make_extractor(pattern: str, group: bool) -> Callable[[str], str]:
-    ext = re.compile(pattern).findall if group else re.compile(pattern).split
-    return F(os.path.basename) >> ext >> op.itemgetter(0)
-
-
 def isgzipped(path: str) -> bool:
     with open(path, 'rb') as buffer:
         return buffer.read(3) == b'\x1f\x8b\x08'
-
-
-def parse(format_, path) -> Iterator[Tuple[str, str]]:
-    """
-    Parse a fasta/fastq file and return a generator of (name, sequence) pairs.
-    The file can be gzipped. Compression is inferred from the file content.
-    :param format_:
-    :param path:
-    :return:
-    """
-    try:
-        parser = FastqGeneralIterator if format_ == FASTQ else SimpleFastaParser
-        with (gzip.open(path, 'rt') if isgzipped(path) else open(path)) as buffer:
-            yield from parser(buffer)
-    except (TypeError, ValueError):
-        raise BadSample(f'bad {format_} file {path}')
-    except FileNotFoundError:
-        raise BadSample(f'sample file not found {path}')
-
-
-def write(handle, format_, records: Iterable[Tuple]):
-    if format_ == FASTA:
-        for i, (name, seq, *_) in enumerate(records):
-            print(f'>{name}_{i+1}', seq, sep='\n', file=handle)
-    elif format_ == FASTQ:
-        for i, (name, seq, qual) in enumerate(records):
-            print(f'@{name}_{i+1}', seq, '+', qual, sep='\n', file=handle)
-    else:
-        raise ValueError(f'Unsupported format {format_}')
 
 
 @click.command('sjoin', help=__doc__,
