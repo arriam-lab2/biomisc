@@ -1,5 +1,4 @@
 import operator as op
-import operator as op
 import os
 import re
 import shutil
@@ -62,6 +61,8 @@ def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
         raise RuntimeError(
             'No cd-hit-est-2d executable found; is it on your PATH?'
         )
+    if (F(map, util.isgzipped) >> any)(input):
+        raise ValueError('compressed input files are not supported')
     clusters = f'{output}.clstr'
     command = [
         executable, '-i', reference, '-c', str(similarity),
@@ -86,7 +87,7 @@ def cdpick(tmpdir: str, input: data.SampleReads, outdir: Optional[str],
               os.path.join(outdir, input.name+OUT_EXT))
     cdhit_tempout = util.randname(tmpdir, '')
     # make sure the files are not compressed
-    with input, util.ungzipped(input.files, tmpdir=tmpdir) as reads:
+    with input, util.ungzipped(*input.files, tmpdir=tmpdir) as reads:
         seqs, clusterfile = cdhit(input=reads, output=cdhit_tempout,
                                   **cdhit_options)
         # parse raw cd-hit clusters and write it into output_

@@ -51,6 +51,7 @@ class SampleFiles(VolatileResource):
     The class is Maybe-like
     """
 
+    # TODO we might want to set delete=False or make the argument mandatory
     def __init__(self, name: str, *files, delete=True):
         missing = _missing(files)
         if missing:

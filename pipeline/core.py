@@ -202,7 +202,7 @@ class Router:
         return type(self)(self.name, mappings)
 
 
-def pcompile(routers: List[Router], input: Type[A], output: Type[B]) \
+def pcompile(routers: List[Router], input: Optional[Type[A]], output: Optional[Type[B]]) \
         -> Callable[[A], B]:
     """
     Compile a path from input node to the output node
@@ -214,21 +214,24 @@ def pcompile(routers: List[Router], input: Type[A], output: Type[B]) \
     # TODO maybe we should create and use something like CompileTimeError?
     if not all(isinstance(router, Router) for router in routers):
         raise ValueError(f'not all routers are instances of {Router.__name__}')
+    input_constraints = None if input is None else [input]
+    output_constraints = None if output is None else [output]
     if len(routers) == 1:
-        constrained = routers[0].constrain([input], [output])
+        constrained = routers[0].constrain(input_constraints, output_constraints)
     else:
         head, *tail = routers
         try:
-            composed: Router = reduce(op.rshift, tail, head.constrain([input], None))
+            composed: Router = reduce(op.rshift, tail, head.constrain(input_constraints, None))
         except RedundancyError:
             raise ValueError(
-                f'there are several valid routes from {input.__name__} to '
-                f'{output.__name__}'
+                f'there are several valid routes from {input} to {output}'
             )
-        constrained = composed.constrain(None, [output])
+        constrained = composed.constrain(None, output_constraints)
     if not constrained:
         raise ValueError(
-            f'there is no route from {input.__name__} to {output.__name__}'
+            f'there is no route' +
+            ('' if input is None else f' from {input}') +
+            ('' if output is None else f' to {output}')
         )
     return constrained.maps[0]
 
