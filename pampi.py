@@ -8,27 +8,28 @@ from fn import F, _ as X
 from fn.func import identity
 
 from pipeline import core
-from pipeline.pampi import data, picking
+from pipeline.pampi import data, pick, util, join
 
 CLUSTERS = 'clusters'
 TMPDIR = 'tmpdir'
 FASTQ = 'fastq'
 FASTA = 'fasta'
+PAIRED_FASTQ = 'paired_fastq'
 
 A = TypeVar('A')
 B = TypeVar('B')
 
 
 _INPUT_DTYPE_DISPATCH = {
-    CLUSTERS: (data.SampleClusters, data.MultipleSampleClusters),
-    FASTA: (data.SampleFasta, data.MultipleSampleFasta),
-    FASTQ: (data.SampleFastq, data.MultipleSampleFastq)
+    CLUSTERS: (data.SampleClusters, data.MultipleClusters),
+    FASTA: (data.SampleFasta, data.MultipleFasta),
+    FASTQ: (data.SampleFastq, data.MultipleFastq),
+    PAIRED_FASTQ: (data.SamplePairedFastq, data.MultiplePairedFastq)
 }
 
 
 def validate(f: Callable[[A], bool], transform: Callable[[A], B], message: str,
              ctx, param: str, value: A) -> B:
-    print(value)
     try:
         transformed = transform(value)
         if not f(value):
@@ -48,6 +49,9 @@ _input_paths_exist: Callable[[pd.DataFrame], bool] = (
     lambda df: len(df) and df.iloc[:, 1:].applymap(os.path.exists).all().all()
 )
 
+# TODO improve documentation of all features
+# TODO separate transformation and validation: it's impossible to handle exceptions...
+# TODO ... e.g. during input parsing (when a wrong format is specified)
 
 @click.group(chain=True, invoke_without_command=True,
              context_settings=dict(help_option_names=['-h', '--help']))
@@ -59,7 +63,7 @@ _input_paths_exist: Callable[[pd.DataFrame], bool] = (
                          'not all paths specified in the input mapping exist '
                          'or the mapping is empty'))
 @click.option('-d', '--dtype', required=True,
-              type=click.Choice([CLUSTERS, FASTA, FASTQ]),
+              type=click.Choice([CLUSTERS, FASTA, FASTQ, PAIRED_FASTQ]),
               help='Initial data type')
 @click.option('-t', '--tempdir', default=tempfile.gettempdir(),
               type=click.Path(exists=False, dir_okay=True, resolve_path=True),
@@ -84,7 +88,7 @@ def pipeline(ctx, routers: List[core.Router], input: pd.DataFrame, dtype, *_, **
             single_t(name, *files, delete=False)
             for name, *files in input.itertuples(False)
         ])
-    except TypeError:
+    except (TypeError, IndexError):
         raise ValueError(f'input data are not compatible with data type {dtype}')
     output = core.pcompile(routers, multiple_t, None)(samples)
 
@@ -115,18 +119,32 @@ def qc(ctx):
                    'extract the first occurrence of the group by specifying '
                    'the --group flag')
 @click.option('--group', is_flag=True, default=False)
-@click.option('-of', '--output_format', type=click.Choice([FASTQ, FASTA]),
-              default=FASTA,
-              help='Output format. This option defaults to FASTA, because '
-                   'FASTQ output is only compatible with FASTQ input.')
-@click.option('-o', '--output', required=True,
-              type=click.Path(exists=False, dir_okay=False, resolve_path=True),
-              callback=F(validate, lambda v: not os.path.exists(v), identity,
-                         'output exists'),
-              help='Output destination.')
-@click.pass_context
-def join(ctx, pattern, group, output_format, output):
-    pass
+@click.option('--compress', is_flag=True, default=False)
+@click.option('-o', '--output',
+              type=click.Path(exists=False, dir_okay=True, resolve_path=True),
+              callback=F(validate,
+                         lambda x: not x or util.root_exists(x),
+                         identity,
+                         'destination root does not exist'),
+              help='Output destination. This should be a regular path for '
+                   'single-file output types or a pattern for paired-end '
+                   'fastq output. Pattern example: /path/to/output%.fastq - '
+                   'here % will be replaced by R1 and R2 for forward and '
+                   'reverse reads respectively')
+def joiner(ctx, pattern, group, compress, output):
+    rename = join.make_extractor(pattern, group) if pattern else identity
+    output = output.replace('%', '{}') if output else None
+    options = (ctx.obj[TMPDIR], rename, compress, output)
+    return core.Router('joiner', [
+        core.Map(data.MultipleFasta, data.SampleFasta,
+                 lambda samples: join.join(*options, samples)),
+        core.Map(data.MultipleFastq, data.SampleFastq,
+                 lambda samples: join.join(*options, samples)),
+        core.Map(data.MultiplePairedFastq, data.SamplePairedFastq,
+                 lambda samples: join.join(*options, samples)),
+        core.Map(data.MultipleClusters, data.SampleClusters,
+                 lambda samples: join.join(*options, samples))
+    ])
 
 
 @pampi.command('pick')
@@ -160,21 +178,24 @@ def join(ctx, pattern, group, output_format, output):
                          'destination does not exist or is not a directory'),
               help='Output destination.')
 @click.pass_context
-def pick(ctx, reference: str, accurate: bool, similarity: float, threads: int,
-         memory: int, drop_empty: bool, outdir: str):
+def picker(ctx, reference: str, accurate: bool, similarity: float, threads: int,
+           memory: int, drop_empty: bool, outdir: str):
     options = dict(tmpdir=ctx.obj[TMPDIR], outdir=outdir, drop_empty=drop_empty,
                    reference=reference, accurate=accurate,
                    similarity=similarity, threads=threads, memory=memory)
-    print(options)
-    return core.Router('pick', [
+    return core.Router('picker', [
         core.Map(data.SampleFasta, data.SampleClusters,
-                 lambda x: picking.cdpick(input=x, **options)),
-        core.Map(data.MultipleSampleFasta, data.MultipleSampleClusters,
-                 lambda x: picking.cdpick_multiple(input=x, **options)),
+                 lambda x: pick.cdpick(sample=x, **options)),
+        core.Map(data.MultipleFasta, data.MultipleClusters,
+                 lambda x: pick.cdpick_multiple(samples=x, **options)),
         core.Map(data.SampleFastq, data.SampleClusters,
-                 lambda x: picking.cdpick(input=x, **options)),
-        core.Map(data.MultipleSampleFastq, data.MultipleSampleClusters,
-                 lambda x: picking.cdpick_multiple(input=x, **options))
+                 lambda x: pick.cdpick(sample=x, **options)),
+        core.Map(data.MultipleFastq, data.MultipleClusters,
+                 lambda x: pick.cdpick_multiple(samples=x, **options)),
+        core.Map(data.SamplePairedFastq, data.SampleClusters,
+                 lambda x: pick.cdpick(sample=x, **options)),
+        core.Map(data.MultiplePairedFastq, data.MultipleClusters,
+                 lambda x: pick.cdpick_multiple(samples=x, **options))
 
     ])
 

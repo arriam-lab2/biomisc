@@ -1,11 +1,15 @@
 import abc
 import os
 from contextlib import AbstractContextManager, suppress
-from itertools import filterfalse
+from itertools import filterfalse, chain, repeat
 from typing import Optional, Callable, Sequence, Iterable, TypeVar, List, \
-    NamedTuple
+    NamedTuple, Iterator, Tuple, cast
 
+from Bio.SeqIO.FastaIO import SimpleFastaParser
+from Bio.SeqIO.QualityIO import FastqGeneralIterator
 from fn import F
+
+from pipeline.pampi import util
 
 A = TypeVar('A')
 
@@ -95,21 +99,51 @@ class SampleFiles(VolatileResource):
         self._released = True
 
 
-class SampleFasta(SampleFiles):
+class SamplePairedFastq(SampleFiles):
 
-    def __init__(self, name: str, forward: str, reverse: Optional[str]=None,
+    def __init__(self, name: str, forward: str, reverse: str,
                  delete=True):
-        reads = (forward, reverse) if reverse else (forward,)
-        super().__init__(name, *reads, delete=delete)
-        self._paired = reverse is not None
+        super().__init__(name, forward, reverse, delete=delete)
 
     @property
-    def paired(self) -> bool:
-        return self._paired
+    def forward(self) -> Optional[str]:
+        return self.files[0] if self.files else None
+
+    @property
+    def reverse(self) -> Optional[str]:
+        return self.files[1] if self.files else None
+
+    def parse(self) \
+            -> List[Tuple[Tuple[str, str, str], Tuple[str, str, str]]]:
+        if self.released:
+            raise RuntimeError(f'accessing a released resource {self}')
+        with util.gzread(self.forward) as fwd, util.gzread(self.reverse) as rev:
+            return list(zip(*map(FastqGeneralIterator, [fwd, rev])))
+
+
+class SampleFasta(SampleFiles):
+
+    def __init__(self, name: str, sequences: str, delete=True):
+        super().__init__(name, sequences, delete=delete)
+
+    @property
+    def sequences(self) -> str:
+        return self.files[0] if self.files else None
+
+    def parse(self) -> List[Tuple[str, str]]:
+        if self.released:
+            raise RuntimeError(f'accessing a released resource {self}')
+        with util.gzread(self.sequences) as buffer:
+            return list(SimpleFastaParser(buffer))
 
 
 class SampleFastq(SampleFasta):
-    pass
+
+    def parse(self) -> List[Tuple[str, str, str]]:
+        if self.released:
+            raise RuntimeError(f'accessing a released resource {self}')
+        with util.gzread(self.sequences) as buffer:
+            return list(FastqGeneralIterator(buffer))
 
 
 class SampleClusters(SampleFiles):
@@ -121,20 +155,35 @@ class SampleClusters(SampleFiles):
     def clusters(self) -> Optional[str]:
         return self.files[0] if self.files else None
 
+    def parse(self) -> List[Tuple[str, List[str]]]:
+        if self.released:
+            raise RuntimeError(f'accessing a released resource {self}')
+        with util.gzread(self.clusters) as buffer:
+            return (
+                F(map, str.strip) >> (filter, bool) >>
+                (map, lambda x: x.split('\t')) >>
+                (map, lambda x: (x[0], x[1:])) >> list
+            )(buffer)
+
 
 # TODO we might want to implement full-blown classes with init-time validation
 # to make sure MultipleSample* can't be initialised with released resources
-MultipleSampleFasta = NamedTuple('MultipleSampleFasta', [
+MultipleFasta = NamedTuple('MultipleFasta', [
     ('samples', List[SampleFasta])
 ])
 
-MultipleSampleFastq = NamedTuple('MultipleSampleFastq', [
+MultipleFastq = NamedTuple('MultipleFastq', [
     ('samples', List[SampleFastq])
 ])
 
-MultipleSampleClusters = NamedTuple('MultipleSampleClusters', [
+MultiplePairedFastq = NamedTuple('MultiplePairedFastq', [
+    ('samples', List[SamplePairedFastq])
+])
+
+MultipleClusters = NamedTuple('MultipleClusters', [
     ('samples', List[Optional[SampleClusters]])
 ])
+
 
 if __name__ == '__main__':
     raise RuntimeError

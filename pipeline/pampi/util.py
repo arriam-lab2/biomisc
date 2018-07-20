@@ -4,37 +4,50 @@ import tempfile
 import logging
 import shutil
 import uuid
+import gzip
 import os
 from itertools import repeat, filterfalse
 from functools import wraps
-from typing import Callable, TypeVar, Optional, Sequence
+from typing import Callable, TypeVar, Optional, Sequence, TextIO
 
-from fn import F
+from fn import F, _ as X
 
 
 DEVNULL = open(os.devnull, 'w')
 ENV = '/usr/bin/env'
 GZIP = 'gzip'
 QUITE = dict(stdout=DEVNULL, stderr=sp.STDOUT)
+# extensions
+GZ = 'gz'
+FASTQ = 'fastq'
+FASTA = 'fasta'
+CLUSTERS = 'clstr'
+
 
 A = TypeVar('A')
 
 
-def randname(dirname: str, ext: str) -> str:
+def root_exists(path: str) -> bool:
     """
-    Generate a random file name. Ensures that such a name does not exist in
-    the file system
+    Does root directory of a path exist?
+    :param path:
+    :return:
+    """
+    return os.path.exists(os.path.dirname(path))
+
+
+def randname(dirname: str, suffix: str, check: bool=True) -> str:
+    """
+    Generate a random file name.
     at the call-time
     :param dirname: specify a root directory
-    :param ext: file extension
+    :param suffix: file extension
+    :param check: ensures that such a name does not exist in the file system
     :return:
     """
     return (
-        F(map, str) >>
-        (map, F(os.path.join, dirname)) >>
-        (map, lambda x: x+ext) >>
-        (filterfalse, os.path.exists) >>
-        next
+        F(map, str) >> (map, F(os.path.join, dirname)) >> (map, X+suffix) >>
+        (filterfalse, (os.path.exists if check else lambda x: False)) >> next
     )(uuid.uuid4() for _ in repeat(None))
 
 
@@ -70,6 +83,10 @@ def isgzipped(path: str) -> bool:
         return buffer.read(3) == b'\x1f\x8b\x08'
 
 
+def gzread(path: str) -> TextIO:
+    return gzip.open(path, 'rt') if isgzipped(path) else open(path)
+
+
 @contextlib.contextmanager
 def ungzipped(*paths, tmpdir=tempfile.gettempdir()) -> Sequence[str]:
     """
@@ -96,6 +113,9 @@ def ungzipped(*paths, tmpdir=tempfile.gettempdir()) -> Sequence[str]:
             # if gzipped, make a temporary decompressed file
             # shelling gzip out, because Python's built-in gzip implementation
             # is notoriously slow
+            # !!! note: opening several connections to a named temporary file
+            #           is only possible on Unix-like systems. This function is
+            #           thus not Windows-friendly.
             if isgzipped(path):
                 buffer = tempfile.NamedTemporaryFile(dir=tmpdir)
                 stack.enter_context(buffer)

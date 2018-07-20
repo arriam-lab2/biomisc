@@ -12,7 +12,6 @@ from pipeline.pampi import util, data
 
 CDHIT = 'cd-hit-est-2d'
 SEQID = re.compile('>(.+?)\.\.\.').findall
-OUT_EXT = '.clstr'
 
 
 # TODO add an import-time warnings about cd-hit's and/or gzip's absence
@@ -79,15 +78,17 @@ def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
 
 # TODO add a nondesctructive debug mode?
 @util.fallible(RuntimeError, FileNotFoundError)
-def cdpick(tmpdir: str, input: data.SampleFasta, outdir: Optional[str],
+def cdpick(tmpdir: str, sample: data.SampleFiles, outdir: Optional[str],
            drop_empty: bool, **cdhit_options) -> Optional[data.SampleClusters]:
     if not os.path.exists(tmpdir):
         raise ValueError(f'temporary directory {tmpdir} does not exist')
-    output = (util.randname(tmpdir, OUT_EXT) if outdir is None else
-              os.path.join(outdir, input.name+OUT_EXT))
+    if len(sample.files) > 2:
+        raise ValueError('no more than two read files can be used for picking')
+    output = (util.randname(tmpdir, f'.{util.CLUSTERS}') if outdir is None else
+              os.path.join(outdir, f'{sample.name}.{util.CLUSTERS}'))
     cdhit_tempout = util.randname(tmpdir, '')
     # make sure the files are not compressed
-    with input, util.ungzipped(*input.files, tmpdir=tmpdir) as reads:
+    with sample, util.ungzipped(*sample.files, tmpdir=tmpdir) as reads:
         seqs, clusterfile = cdhit(input=reads, output=cdhit_tempout,
                                   **cdhit_options)
         # parse raw cd-hit clusters and write it into output_
@@ -100,18 +101,18 @@ def cdpick(tmpdir: str, input: data.SampleFasta, outdir: Optional[str],
         # a specified output destination means that output files can be observed
         # by the callee and their destruction should not be subject to any
         # race conditions
-        return data.SampleClusters(input.name, clusters=output,
+        return data.SampleClusters(sample.name, clusters=output,
                                    delete=outdir is None)
 
 
 @util.fallible(RuntimeError, FileNotFoundError)
-def cdpick_multiple(tmpdir: str, input: data.MultipleSampleFasta,
+def cdpick_multiple(tmpdir: str, samples: data.MultipleFasta,
                     outdir: Optional[str], drop_empty: bool, **cdhit_options) \
-        -> Optional[data.MultipleSampleClusters]:
+        -> Optional[data.MultipleClusters]:
 
-    return data.MultipleSampleClusters([
+    return data.MultipleClusters([
         cdpick(tmpdir, sample, outdir, drop_empty, **cdhit_options)
-        for sample in input.samples
+        for sample in samples.samples
     ])
 
 
