@@ -1,18 +1,17 @@
-import gzip
 import operator as op
 import os
 import re
 from contextlib import ExitStack
 from functools import reduce
 from itertools import count, islice, chain, tee
-from typing import Callable, Iterator, Tuple, Iterable, List, TextIO
+from typing import Callable, Iterator, Tuple, Iterable, List
 
 from fn import F
 from fn.iters import group_by
 from multipledispatch import dispatch
 
 from pipeline.pampi import util, data
-from pipeline.pampi.util import root_exists
+from pipeline.pampi.util import root_exists, writer, ending
 
 
 class BadSample(ValueError):
@@ -30,15 +29,6 @@ def make_extractor(pattern: str, group: bool) -> Callable[[str], str]:
 # rename reads in each mapping
 # merge reads into one single file
 # select output format: clusters, tsv, biom.
-
-
-_writer: Callable[[bool, str], TextIO] = lambda compress, path: (
-    gzip.open(path, 'wt') if compress else open(path, 'w')
-)
-
-_ending: Callable[[bool], str] = (
-    lambda compress: f'.{util.GZ}' if compress else ''
-)
 
 
 def _make_counter(start: int, template: str) -> Iterator[str]:
@@ -147,7 +137,7 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
 
     output_ = (
         output if output is not None else
-        util.randname(tmpdir, f'.{util.FASTQ}'+_ending(compress))
+        util.randname(tmpdir, f'.{util.FASTQ}' + ending(compress))
     )
 
     if not root_exists(output_):
@@ -159,11 +149,11 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
         )
         name_templates = [f'@{rename(sample.name)}_{{}}' for sample in samples_]
         reads = (sample.parse() for sample in samples_)
-        buffer = context.enter_context(_writer(compress, output_))
+        buffer = context.enter_context(writer(compress, output_))
         for name, seq, qual in join_fastqc(name_templates, reads):
             print(name, seq, '+', qual, sep='\n', file=buffer)
         return data.SampleFastq(
-            str([s.name for s in samples_]), output_, output is None
+            '+'.join([s.name for s in samples_]), output_, output is None
         )
 
 
@@ -174,7 +164,7 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
 
     out_pattern = (
         output_pattern if output_pattern is not None else
-        util.randname(tmpdir, f'_{{}}.{util.FASTQ}'+_ending(compress), False)
+        util.randname(tmpdir, f'_{{}}.{util.FASTQ}' + ending(compress), False)
     )
 
     if out_pattern and not root_exists(out_pattern):
@@ -198,13 +188,13 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
                                 F(map, F(map, op.itemgetter(0)))(fwd_stream))
         rev_reads = join_fastqc(rev_name_templates,
                                 F(map, F(map, op.itemgetter(1)))(rev_stream))
-        forward_buffer = context.enter_context(_writer(compress, fwd_output))
-        reverse_buffer = context.enter_context(_writer(compress, rev_output))
+        forward_buffer = context.enter_context(writer(compress, fwd_output))
+        reverse_buffer = context.enter_context(writer(compress, rev_output))
         for (fname, fseq, fqual), (rname, rseq, rqual) in zip(fwd_reads, rev_reads):
             print(fname, fseq, '+', fqual, sep='\n', file=forward_buffer)
             print(rname, rseq, '+', rqual, sep='\n', file=reverse_buffer)
         return data.SamplePairedFastq(
-            str([s.name for s in samples.samples]), fwd_output, rev_output,
+            '+'.join([s.name for s in samples_]), fwd_output, rev_output,
             output_pattern is None
         )
 
@@ -216,7 +206,7 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
 
     output_ = (
         output if output is not None else
-        util.randname(tmpdir, f'.{util.FASTA}'+_ending(compress))
+        util.randname(tmpdir, f'.{util.FASTA}' + ending(compress))
     )
 
     if not root_exists(output_):
@@ -228,11 +218,11 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
         )
         name_templates = [f'>{rename(sample.name)}_{{}}' for sample in samples_]
         reads = (sample.parse() for sample in samples_)
-        buffer = context.enter_context(_writer(compress, output_))
+        buffer = context.enter_context(writer(compress, output_))
         for name, seq in join_fasta(name_templates, reads):
             print(name, seq, sep='\n', file=buffer)
         return data.SampleFasta(
-            str([s.name for s in samples_]), output_, output is None
+            '+'.join([s.name for s in samples_]), output_, output is None
         )
 
 
@@ -243,7 +233,7 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
 
     output_ = (
         output if output is not None else
-        util.randname(tmpdir, f'.{util.CLUSTERS}'+_ending(compress))
+        util.randname(tmpdir, f'.{util.CLUSTERS}' + ending(compress))
     )
 
     if not root_exists(output_):
@@ -255,11 +245,11 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
         )
         name_templates = [f'{rename(sample.name)}_{{}}' for sample in samples_]
         clusters = (sample.parse() for sample in samples_)
-        buffer = context.enter_context(_writer(compress, output_))
+        buffer = context.enter_context(writer(compress, output_))
         for name, reads in join_clusters(name_templates, clusters):
             print(name, '\t'.join(reads), sep='\t', file=buffer)
         return data.SampleClusters(
-            str([s.name for s in samples_]), output_, output is None
+            '+'.join([s.name for s in samples_]), output_, output is None
         )
 
 

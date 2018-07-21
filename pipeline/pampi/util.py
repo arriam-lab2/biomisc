@@ -25,6 +25,19 @@ CLUSTERS = 'clstr'
 
 
 A = TypeVar('A')
+NoneType = type(None)
+
+
+writer: Callable[[bool, str], TextIO] = lambda compress, path: (
+    gzip.open(path, 'wt') if compress else open(path, 'w')
+)
+ending: Callable[[bool], str] = (
+    lambda compress: f'.{util.GZ}' if compress else ''
+)
+
+
+def starapply(f, args):
+    return f(*args)
 
 
 def root_exists(path: str) -> bool:

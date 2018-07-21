@@ -80,6 +80,16 @@ def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
 @util.fallible(RuntimeError, FileNotFoundError)
 def cdpick(tmpdir: str, sample: data.SampleFiles, outdir: Optional[str],
            drop_empty: bool, **cdhit_options) -> Optional[data.SampleClusters]:
+    """
+    A high-level wrapper around cdhit
+    TODO improve docs
+    :param tmpdir:
+    :param sample:
+    :param outdir:
+    :param drop_empty:
+    :param cdhit_options:
+    :return:
+    """
     if not os.path.exists(tmpdir):
         raise ValueError(f'temporary directory {tmpdir} does not exist')
     if len(sample.files) > 2:

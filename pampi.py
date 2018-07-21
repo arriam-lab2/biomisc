@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import List, Callable, TypeVar
+from typing import List, Callable, TypeVar, Optional
 
 import click
 import pandas as pd
@@ -8,7 +8,7 @@ from fn import F, _ as X
 from fn.func import identity
 
 from pipeline import core
-from pipeline.pampi import data, pick, util, join
+from pipeline.pampi import data, pick, util, join, trim
 
 CLUSTERS = 'clusters'
 TMPDIR = 'tmpdir'
@@ -53,6 +53,7 @@ _input_paths_exist: Callable[[pd.DataFrame], bool] = (
 # TODO separate transformation and validation: it's impossible to handle exceptions...
 # TODO ... e.g. during input parsing (when a wrong format is specified)
 
+
 @click.group(chain=True, invoke_without_command=True,
              context_settings=dict(help_option_names=['-h', '--help']))
 @click.option('-i', '--input', required=True,
@@ -95,19 +96,38 @@ def pipeline(ctx, routers: List[core.Router], input: pd.DataFrame, dtype, *_, **
 
 # TODO add validators
 
-@pampi.command('qc')
+@pampi.command('trim')
 @click.pass_context
-@click.option('-l', '--minlen', type=int)
-@click.option('-q', '--minqual', type=str, help='e.g. 18:3')  # TODO document
-@click.option('-c', '--head_crop', type=int)
-@click.option('-o', '--output', required=True,
+@click.option('-p', '--phred', type=click.Choice(['33', '64']), default='33',
+              callback=F(validate, identity, int, ''))
+@click.option('-q', '--minqual', type=int, default=1,
+              help='Minimal quality')
+@click.option('-w', '--window', type=int, default=1,
+              help='Quality assessment window')
+@click.option('-l', '--minlen', type=int, default=1,
+              help='Minimal cumulative length left after quality trimming')  # TODO expand help
+@click.option('-c', '--crop', type=int, default=0)
+@click.option('--compress', is_flag=True, default=False,
+              help='Compress the output')
+@click.option('-o', '--outdir',
               type=click.Path(exists=False, resolve_path=True),
-              callback=F(validate, lambda v: not os.path.exists(v), identity,
+              callback=F(validate,
+                         lambda x: not (x and os.path.exists(x)),
+                         identity,
                          'output destination exists'),
               help='Output destination.')
-@click.pass_context
-def qc(ctx):
-    pass
+# @click.option('-f', '--force', is_flag=True, default=True,
+#               help='Proceed even if outdir exists')
+def trimmer(ctx, phred: int, minqual: int, window: int, minlen: int, crop: int,
+            compress: bool, outdir: Optional[str]):
+    if outdir is not None:
+        os.makedirs(outdir)
+
+    options = (ctx.obj[TMPDIR], phred, minqual, window, minlen, crop, compress, outdir)
+    return core.Router('trimmer', [
+        core.Map(data.MultiplePairedFastq, data.MultiplePairedFastq,
+                 lambda samples: trim.trimmer(*options, samples=samples))
+    ])
 
 
 @pampi.command('join')
@@ -121,30 +141,36 @@ def qc(ctx):
 @click.option('--group', is_flag=True, default=False)
 @click.option('--compress', is_flag=True, default=False)
 @click.option('-o', '--output',
-              type=click.Path(exists=False, dir_okay=True, resolve_path=True),
+              type=click.Path(exists=False, resolve_path=True),
               callback=F(validate,
                          lambda x: not x or util.root_exists(x),
                          identity,
                          'destination root does not exist'),
               help='Output destination. This should be a regular path for '
                    'single-file output types or a pattern for paired-end '
-                   'fastq output. Pattern example: /path/to/output%.fastq - '
+                   'fastq output. Pattern example: /path/to/output-%.fastq - '
                    'here % will be replaced by R1 and R2 for forward and '
                    'reverse reads respectively')
 def joiner(ctx, pattern, group, compress, output):
     rename = join.make_extractor(pattern, group) if pattern else identity
     output = output.replace('%', '{}') if output else None
     options = (ctx.obj[TMPDIR], rename, compress, output)
-    return core.Router('joiner', [
+    # chose maps based on `output` type (if output is provided)
+    # TODO document this behaviour
+    maps = [
         core.Map(data.MultipleFasta, data.SampleFasta,
                  lambda samples: join.join(*options, samples)),
         core.Map(data.MultipleFastq, data.SampleFastq,
                  lambda samples: join.join(*options, samples)),
-        core.Map(data.MultiplePairedFastq, data.SamplePairedFastq,
-                 lambda samples: join.join(*options, samples)),
         core.Map(data.MultipleClusters, data.SampleClusters,
                  lambda samples: join.join(*options, samples))
-    ])
+    ]
+    if output is None or '{}' in output:
+        return core.Router('joiner', maps+[
+            core.Map(data.MultiplePairedFastq, data.SamplePairedFastq,
+                     lambda samples: join.join(*options, samples)),
+        ])
+    return core.Router('joiner', maps)
 
 
 @pampi.command('pick')
@@ -173,16 +199,22 @@ def joiner(ctx, pattern, group, compress, output):
 @click.option('-e', '--drop_empty', is_flag=True, default=False,
               help='delete empty output')
 @click.option('-o', '--outdir',
-              type=click.Path(exists=True, dir_okay=True, resolve_path=True),
-              callback=F(validate, lambda x: not x or os.path.isdir(x), identity,
-                         'destination does not exist or is not a directory'),
+              type=click.Path(exists=False, resolve_path=True),
+              callback=F(validate,
+                         lambda x: not (x and os.path.exists(x)),
+                         identity,
+                         'output destination exists'),
               help='Output destination.')
 @click.pass_context
 def picker(ctx, reference: str, accurate: bool, similarity: float, threads: int,
            memory: int, drop_empty: bool, outdir: str):
+    if outdir is not None:
+        os.makedirs(outdir)
+
     options = dict(tmpdir=ctx.obj[TMPDIR], outdir=outdir, drop_empty=drop_empty,
                    reference=reference, accurate=accurate,
                    similarity=similarity, threads=threads, memory=memory)
+
     return core.Router('picker', [
         core.Map(data.SampleFasta, data.SampleClusters,
                  lambda x: pick.cdpick(sample=x, **options)),
