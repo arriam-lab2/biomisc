@@ -94,6 +94,8 @@ def trimmer(tmpdir: str, phred: int, minqual: int, window: int, minlen: int,
             croplen: int, compress: bool, outdir: Optional[str],
             samples: data.MultiplePairedFastq) -> data.MultiplePairedFastq:
     # do not filter individual reads by length
+    # TODO devectorise all low-level generators to make trimmer_ atomic: ...
+    # TODO ... this might shave off redundant complexity below
     trimmer_ = F(trim, phred, minqual, window, 0, croplen)
     trimmed_samples = []
     fwd_suffix = f'_R1.{util.FASTQ}' + util.ending(compress)
@@ -113,7 +115,7 @@ def trimmer(tmpdir: str, phred: int, minqual: int, window: int, minlen: int,
             F(util.starapply, zip) >>
             (map, trimmer_) >>
             (util.starapply, zip) >>
-            (filter, lambda pair: cumlength(pair) >= minlen)
+            (filter, lambda pair: cumlength(pair) >= (minlen - croplen))
         )(sample.parse())
         with util.writer(compress, fwd_out) as fbuffer, util.writer(compress, rev_out) as rbuffer:
             for (fname, fseq, fqual), (rname, rseq, rqual) in trimmed_pairs:
@@ -125,7 +127,6 @@ def trimmer(tmpdir: str, phred: int, minqual: int, window: int, minlen: int,
     return data.MultiplePairedFastq(trimmed_samples)
 
 # TODO implement trimmer for multiple single-end FASTQ files and single samples
-
 
 if __name__ == '__main__':
     raise RuntimeError
