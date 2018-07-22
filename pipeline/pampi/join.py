@@ -153,7 +153,7 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
         for name, seq, qual in join_fastqc(name_templates, reads):
             print(name, seq, '+', qual, sep='\n', file=buffer)
         return data.SampleFastq(
-            '+'.join([s.name for s in samples_]), output_, output is None
+            'joined', output_, output is None
         )
 
 
@@ -194,7 +194,7 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
             print(fname, fseq, '+', fqual, sep='\n', file=forward_buffer)
             print(rname, rseq, '+', rqual, sep='\n', file=reverse_buffer)
         return data.SamplePairedFastq(
-            '+'.join([s.name for s in samples_]), fwd_output, rev_output,
+            'joined', fwd_output, rev_output,
             output_pattern is None
         )
 
@@ -222,7 +222,7 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
         for name, seq in join_fasta(name_templates, reads):
             print(name, seq, sep='\n', file=buffer)
         return data.SampleFasta(
-            '+'.join([s.name for s in samples_]), output_, output is None
+            'joined', output_, output is None
         )
 
 
@@ -249,7 +249,7 @@ def join(tmpdir: str, rename: Callable[[str], str], compress: bool,
         for name, reads in join_clusters(name_templates, clusters):
             print(name, '\t'.join(reads), sep='\t', file=buffer)
         return data.SampleClusters(
-            '+'.join([s.name for s in samples_]), output_, output is None
+            'joined', output_, output is None
         )
 
 

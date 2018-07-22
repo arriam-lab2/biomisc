@@ -106,6 +106,7 @@ def cdpick(tmpdir: str, sample: data.SampleFiles, outdir: Optional[str],
             for cluster in parse_cdhit_clusters(drop_empty, cluster_handle):
                 print('\t'.join(cluster), file=out)
         # delete temporary cd-hit files
+        # TODO these temporary files are not cleaned upon exception
         os.remove(seqs)
         os.remove(clusterfile)
         # a specified output destination means that output files can be observed
