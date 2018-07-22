@@ -214,7 +214,8 @@ def picker(ctx, reference: str, accurate: bool, similarity: float, threads: int,
     options = dict(tmpdir=ctx.obj[TMPDIR], outdir=outdir, drop_empty=drop_empty,
                    reference=reference, accurate=accurate,
                    similarity=similarity, threads=threads, memory=memory)
-
+    # TODO we might want to specify a pattern output or several possible types
+    # of output and decide which Maps to return (similarly to JOIN).
     return core.Router('picker', [
         core.Map(data.SampleFasta, data.SampleClusters,
                  lambda x: pick.cdpick(sample=x, **options)),

@@ -33,10 +33,7 @@ def parse_cdhit_clusters(drop_empty: bool, handle: Iterable[str]) \
         )(handle)
 
 
-# TODO :param supress_empty: suppress empty clusters, i.e. do not report
-# TODO                       unobserved references.
-
-@util.fallible(RuntimeError, sp.CalledProcessError)
+# @util.fallible(RuntimeError, sp.CalledProcessError)
 def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
           memory: int, input: Union[Tuple[str], Tuple[str, str]], output: str) \
         -> Optional[Tuple[str, str]]:
@@ -78,7 +75,7 @@ def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
 
 # TODO add a nondesctructive debug mode?
 # TODO we might want to report alignment identities
-@util.fallible(RuntimeError, FileNotFoundError)
+# @util.fallible(RuntimeError, FileNotFoundError)
 def cdpick(tmpdir: str, sample: data.SampleFiles, outdir: Optional[str],
            drop_empty: bool, **cdhit_options) -> Optional[data.SampleClusters]:
     """
@@ -117,7 +114,7 @@ def cdpick(tmpdir: str, sample: data.SampleFiles, outdir: Optional[str],
                                    delete=outdir is None)
 
 
-@util.fallible(RuntimeError, FileNotFoundError)
+# @util.fallible(RuntimeError, FileNotFoundError)
 def cdpick_multiple(tmpdir: str, samples: data.MultipleFasta,
                     outdir: Optional[str], drop_empty: bool, **cdhit_options) \
         -> Optional[data.MultipleClusters]:
