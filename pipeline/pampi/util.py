@@ -5,6 +5,7 @@ import logging
 import shutil
 import uuid
 import gzip
+import io
 import os
 from itertools import repeat, filterfalse
 from functools import wraps
@@ -97,7 +98,7 @@ def isgzipped(path: str) -> bool:
 
 
 def gzread(path: str) -> TextIO:
-    return gzip.open(path, 'rt') if isgzipped(path) else open(path)
+    return io.BufferedReader(gzip.open(path, 'rt')) if isgzipped(path) else open(path)
 
 
 @contextlib.contextmanager
