@@ -77,6 +77,7 @@ def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
 
 
 # TODO add a nondesctructive debug mode?
+# TODO we might want to report alignment identities
 @util.fallible(RuntimeError, FileNotFoundError)
 def cdpick(tmpdir: str, sample: data.SampleFiles, outdir: Optional[str],
            drop_empty: bool, **cdhit_options) -> Optional[data.SampleClusters]:
