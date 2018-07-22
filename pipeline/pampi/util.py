@@ -98,7 +98,7 @@ def isgzipped(path: str) -> bool:
 
 
 def gzread(path: str) -> TextIO:
-    return io.BufferedReader(gzip.open(path, 'rt')) if isgzipped(path) else open(path)
+    return gzip.open(path, 'rt') if isgzipped(path) else open(path)
 
 
 @contextlib.contextmanager
