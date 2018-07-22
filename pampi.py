@@ -96,7 +96,7 @@ def pipeline(ctx, routers: List[core.Router], input: pd.DataFrame, dtype, *_, **
 
 # TODO add validators
 
-@pampi.command('trim')
+@pampi.command('TRIM')
 @click.pass_context
 @click.option('-p', '--phred', type=click.Choice(['33', '64']), default='33',
               callback=F(validate, identity, int, ''))
@@ -130,7 +130,7 @@ def trimmer(ctx, phred: int, minqual: int, window: int, minlen: int, crop: int,
     ])
 
 
-@pampi.command('join')
+@pampi.command('JOIN')
 @click.pass_context
 @click.option('-p', '--pattern', type=str,
               help='A Python regular expression. By default the expression '
@@ -173,7 +173,7 @@ def joiner(ctx, pattern, group, compress, output):
     return core.Router('joiner', maps)
 
 
-@pampi.command('pick')
+@pampi.command('PICK')
 @click.option('-r', '--reference', required=True,
               type=click.Path(exists=True, dir_okay=False, resolve_path=True),
               help='Reference dataset (FASTA or FASTQ)')
