@@ -32,7 +32,7 @@ writer: Callable[[bool, str], TextIO] = lambda compress, path: (
     gzip.open(path, 'wt') if compress else open(path, 'w')
 )
 ending: Callable[[bool], str] = (
-    lambda compress: f'.{util.GZ}' if compress else ''
+    lambda compress: f'.{GZ}' if compress else ''
 )
 
 
