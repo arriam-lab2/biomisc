@@ -119,8 +119,8 @@ def trimmer(tmpdir: str, phred: int, minqual: int, window: int, minlen: int,
         )(sample.parse())
         with util.writer(compress, fwd_out) as fbuffer, util.writer(compress, rev_out) as rbuffer:
             for (fname, fseq, fqual), (rname, rseq, rqual) in trimmed_pairs:
-                print(fname, fseq, '+', fqual, sep='\n', file=fbuffer)
-                print(rname, rseq, '+', rqual, sep='\n', file=rbuffer)
+                print('@'+fname, fseq, '+', fqual, sep='\n', file=fbuffer)
+                print('@'+rname, rseq, '+', rqual, sep='\n', file=rbuffer)
         trimmed_samples.append(
             data.SamplePairedFastq(sample.name, fwd_out, rev_out, outdir is None)
         )
