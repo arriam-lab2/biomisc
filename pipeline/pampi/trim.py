@@ -128,5 +128,6 @@ def trimmer(tmpdir: str, phred: int, minqual: int, window: int, minlen: int,
 
 # TODO implement trimmer for multiple single-end FASTQ files and single samples
 
+
 if __name__ == '__main__':
     raise RuntimeError

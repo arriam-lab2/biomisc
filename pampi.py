@@ -130,6 +130,26 @@ def trimmer(ctx, phred: int, minqual: int, window: int, minlen: int, crop: int,
     ])
 
 
+@pampi.command('FILTER')
+@click.option('-n', '--nseq', type=int,
+              callback=F(validate, X > 0, identity, 'nseq is negative'))
+def sample_filter(nseq: int):
+
+    # TODO this might not be safe with inherently single-use resources
+    def size_filt(samples):
+        # any parsable data type will do
+        for sample in samples:
+            if sum(map(bool, sample.parse())) >= nseq:
+                yield sample
+            else:
+                sample.release()
+
+    return core.Router('filter', [
+        core.Map(data.MultiplePairedFastq, data.MultiplePairedFastq,
+                 lambda x: data.MultiplePairedFastq(list(size_filt(x.samples))))
+    ])
+
+
 @pampi.command('JOIN')
 @click.pass_context
 @click.option('-p', '--pattern', type=str,

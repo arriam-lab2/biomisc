@@ -1,9 +1,9 @@
 import abc
 import os
 from contextlib import AbstractContextManager, suppress
-from itertools import filterfalse, chain, repeat
+from itertools import filterfalse
 from typing import Optional, Callable, Sequence, Iterable, TypeVar, List, \
-    NamedTuple, Iterator, Tuple, cast
+    NamedTuple, Tuple
 
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from Bio.SeqIO.QualityIO import FastqGeneralIterator
