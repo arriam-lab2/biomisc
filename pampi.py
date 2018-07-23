@@ -41,8 +41,9 @@ def validate(f: Callable[[A], bool], transform: Callable[[A], B], message: str,
         )
 
 
+# todo strip white-spaces off all cells
 _parse_input: Callable[[str], pd.DataFrame] = (
-    lambda x: pd.read_csv(x, sep='\t', header=None, dtype=str)
+    lambda x: pd.read_csv(x, sep='\t', header=None, dtype=str).applymap(str.strip)
 )
 # TODO !!!can't specify pe and se libraries in the same file!!!
 _input_paths_exist: Callable[[pd.DataFrame], bool] = (

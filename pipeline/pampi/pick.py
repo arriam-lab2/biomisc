@@ -61,7 +61,7 @@ def cdhit(reference: str, accurate: bool, similarity: float, threads: int,
         raise ValueError('compressed input files are not supported')
     clusters = f'{output}.clstr'
     command = [
-        executable, '-i', reference, '-c', str(similarity),
+        executable, '-i', reference, '-c', str(similarity), '-d', '0',
         '-g', str(int(accurate)), '-T', str(threads), '-M', str(memory),
         '-o', output, *chain(*zip(['-i2', '-j2'], input))
     ]
