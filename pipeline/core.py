@@ -45,6 +45,17 @@ class RedundancyError(ValueError):
     pass
 
 
+class AmbiguousError(ValueError):
+    def __init__(self, input: str, output: str) -> None:
+        super().__init__(f'there are several valid routes '
+                         'from {input} to {output}')
+
+
+class NoRouteError(ValueError):
+    def __init__(self, input: str, output: str) -> None:
+        super().__init__(f'there is no route from {input} to {output}')
+
+
 class Map(Generic[A, B]):
 
     def __init__(self, domain: Type[A], codomain: Type[B], f: Callable[[A], B]):
@@ -200,16 +211,6 @@ class Router:
             match_any(m.domain, domains) and match_any(m.codomain, codomains)
         ]
         return type(self)(self.name, mappings)
-
-
-class AmbiguousError(ValueError):
-    def __init__(self, input: str, output: str) -> None:
-        super().__init__(f'there are several valid routes from {input} to {output}')
-
-
-class NoRouteError(ValueError):
-    def __init__(self, input: str, output: str) -> None:
-        super().__init__( f'there is no route from {input} to {output}')
 
 
 def pcompile(routers: List[Router], input: Type[A], output: Type[B]) \
