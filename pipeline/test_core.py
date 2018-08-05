@@ -15,7 +15,7 @@ from typing import TypeVar, Generator, List, Tuple, \
     Type, Generic, SupportsFloat, SupportsInt, Callable, \
     Any, Union, Sequence
 from .core import _starapply, Map, Router, pcompile, \
-    AmbiguousError, NoRouteError
+    AmbiguousError, NoRouteError, RedundancyError
 
 
 A = TypeVar('A')
@@ -295,8 +295,10 @@ def _bfs(graph: Graph, input: TypeNode, output: TypeNode) -> BfsResult:
     return BfsResult.REACHABLE if reachable else BfsResult.UNREACHABLE
 
 
-@given(sampled_from(
-    _generate_pcompile_test([Int, Float, Str, int, str, float, Foo], 3, 50)))
+DOMAINS = [Int, Float, Str, int, str, float, Foo]
+
+
+@given(sampled_from(_generate_pcompile_test(DOMAINS, 5, 100)))
 def test_pcompile(test_data: Tuple[List[Router],
                   SortedGraph,
                   Type[A],
@@ -318,6 +320,36 @@ def test_pcompile(test_data: Tuple[List[Router],
         assert result == BfsResult.UNREACHABLE
 
 
+def _generate_rshift_test(domains: List[Type],
+                          num_tests) -> List[Tuple[List[Router],
+                                                   SortedGraph,
+                                                   Type[A],
+                                                   Type[B]]]:
+    return _generate_pcompile_test(domains, 3, num_tests)
+
+
+@given(sampled_from(_generate_rshift_test(DOMAINS, 50)))
+def test_rshift(test_data: Tuple[List[Router],
+                                 SortedGraph,
+                                 Type[A],
+                                 Type[B]]):
+    routers, layers, input, output = test_data
+    assert(len(routers) == 2)
+    left, right = routers
+    input_node = list(filter(lambda n: n.value == input, layers[0]))[0]
+    output_node = list(filter(lambda n: n.value == output, layers[-1]))[0]
+    result = _bfs(layers, input_node, output_node)
+    try:
+        pcompile([left >> right], input, output)
+        assert result == BfsResult.REACHABLE
+    except AmbiguousError:
+        assert result == BfsResult.AMBIGUOUS
+    except NoRouteError:
+        assert result == BfsResult.UNREACHABLE
+    except RedundancyError:
+        pass
+
+
 def _generate_starapply_test_data(size: int) -> Tuple[Callable, 
                                                       List[Callable]]:
     MIN_INT_VALUE = -128
@@ -335,12 +367,12 @@ def _generate_starapply_test_data(size: int) -> Tuple[Callable,
 
 def _generate_starapply_test(count: int) -> List[Tuple[Callable,
                                                        List[Callable]]]:
-    MAX_ARGS = 10
+    MAX_ARGS = 15
     return [_generate_starapply_test_data(random.randint(1, MAX_ARGS))
             for _ in range(count)]
 
 
-@given(sampled_from(_generate_starapply_test(100)))
+@given(sampled_from(_generate_starapply_test(1000)))
 def test_starapply(test_data: Tuple[Callable, List[Callable]]):
     function, generators = test_data
     args = [[next(g) for g in generators]]
