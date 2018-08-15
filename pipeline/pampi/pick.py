@@ -33,17 +33,17 @@ def parse_cdhit_clusters(dropsingle: bool, handle: Iterable[str]) \
         -> Iterable[List[str]]:
     """
     
-    :param dropsingle: cd-hit-est-2d singleton clusters are  references with no 
-    additional sequences 
+    :param dropsingle: cd-hit-est-2d singleton clusters are  references with no
+    additional sequences
     :param handle: 
     :return: 
-    """"""
-        return (
-            F(map, str.strip) >> (filter, bool) >>
-            (lambda x: groupby(x, lambda l: l.startswith('>'))) >>
-            (filter, lambda x: not x[0]) >> (map, op.itemgetter(1)) >>
-            (map, F(transform_cluster, dropsingle)) >> (filter, bool)
-        )(handle)
+    """
+    return (
+        F(map, str.strip) >> (filter, bool) >>
+        (lambda x: groupby(x, lambda l: l.startswith('>'))) >>
+        (filter, lambda x: not x[0]) >> (map, op.itemgetter(1)) >>
+        (map, F(transform_cluster, dropsingle)) >> (filter, bool)
+    )(handle)
 
 
 # @util.fallible(RuntimeError, sp.CalledProcessError)
