@@ -45,6 +45,17 @@ class RedundancyError(ValueError):
     pass
 
 
+class AmbiguousError(ValueError):
+    def __init__(self, input: str, output: str) -> None:
+        super().__init__(f'there are several valid routes '
+                         'from {input} to {output}')
+
+
+class NoRouteError(ValueError):
+    def __init__(self, input: str, output: str) -> None:
+        super().__init__(f'there is no route from {input} to {output}')
+
+
 class Map(Generic[A, B]):
 
     def __init__(self, domain: Type[A], codomain: Type[B], f: Callable[[A], B]):
@@ -221,15 +232,11 @@ def pcompile(routers: List[Router], input: Type[A], output: Type[B]) \
         try:
             composed: Router = reduce(op.rshift, tail, head.constrain([input], None))
         except RedundancyError:
-            raise ValueError(
-                f'there are several valid routes from {input.__name__} to '
-                f'{output.__name__}'
-            )
+            raise AmbiguousError(input.__name__, output.__name__)
         constrained = composed.constrain(None, [output])
     if not constrained:
-        raise ValueError(
-            f'there is no route from {input.__name__} to {output.__name__}'
-        )
+        raise NoRouteError(input.__name__, output.__name__)
+
     return constrained.maps[0]
 
 
