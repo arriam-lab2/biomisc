@@ -45,6 +45,17 @@ class RedundancyError(ValueError):
     pass
 
 
+class AmbiguousError(ValueError):
+    def __init__(self, input: str, output: str) -> None:
+        super().__init__(f'there are several valid routes '
+                         'from {input} to {output}')
+
+
+class NoRouteError(ValueError):
+    def __init__(self, input: str, output: str) -> None:
+        super().__init__(f'there is no route from {input} to {output}')
+
+
 class Map(Generic[A, B]):
 
     def __init__(self, domain: Type[A], codomain: Type[B], f: Callable[[A], B]):
@@ -233,6 +244,7 @@ def pcompile(routers: List[Router], input: Optional[Type[A]], output: Optional[T
             ('' if input is None else f' from {input}') +
             ('' if output is None else f' to {output}')
         )
+        
     return constrained.maps[0]
 
 
