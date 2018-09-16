@@ -52,13 +52,10 @@ def normalise_pairs(forward, reverse, reads1: Iterator, reads2: Iterator) -> Ite
         match1 = match([('F', forward), ('R', reverse)], seq1)
         match2 = match([('R', reverse), ('F', forward)], seq2)
         # both matches must be positive and come from different primers
-        if not (match1 and match2) or match1[0] == match2[0]:
+        if not (match1 and match2) or match1[0] == match2[0] or match1[0] == 'R':
             yield None
             continue
-        norm1, norm2 = (
-            ((name1, match1[1], *tail1), (name2, match2[1], *tail2))
-        )
-        yield (norm1, norm2) if match1[0] == 'F' else (norm2, norm1)
+        yield (name1, match1[1], *tail1), (name2, match2[1], *tail2)
 
 
 @click.command('primercut')
