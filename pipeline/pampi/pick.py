@@ -8,7 +8,8 @@ from typing import Iterable, Optional, List, Union, Tuple
 
 from fn import F
 
-from pipeline.pampi import util, data
+from pipeline.pampi import data
+from pipeline import util
 
 CDHIT = 'cd-hit-est-2d'
 SEQID = re.compile('>(.+?)\.\.\.').findall

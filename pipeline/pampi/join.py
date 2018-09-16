@@ -10,8 +10,9 @@ from fn import F
 from fn.iters import group_by
 from multipledispatch import dispatch
 
-from pipeline.pampi import util, data
-from pipeline.pampi.util import root_exists, writer, ending
+from pipeline.pampi import data
+from pipeline import util
+from pipeline.util import root_exists, writer, ending
 
 
 class BadSample(ValueError):

@@ -101,6 +101,11 @@ def gzread(path: str) -> TextIO:
     return gzip.open(path, 'rt') if isgzipped(path) else open(path)
 
 
+def gzwrite(path: str) -> TextIO:
+    compress = path.lower().endswith('.gz') or path.lower().endswith('.bgz')
+    return gzip.open(path, 'wt') if compress else open(path, 'w')
+
+
 @contextlib.contextmanager
 def ungzipped(*paths, tmpdir=tempfile.gettempdir()) -> Sequence[str]:
     """

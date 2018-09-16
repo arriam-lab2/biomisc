@@ -9,7 +9,7 @@ from Bio.SeqIO.FastaIO import SimpleFastaParser
 from Bio.SeqIO.QualityIO import FastqGeneralIterator
 from fn import F
 
-from pipeline.pampi import util
+from pipeline import util
 
 A = TypeVar('A')
 
