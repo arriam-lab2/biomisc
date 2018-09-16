@@ -76,7 +76,7 @@ def primercut(forward, reverse, mismatches, inputs: Tuple[str, str], outputs: Tu
     in1, in2 = inputs
     out1, out2 = outputs
     bad_pairs = 0
-    total = 0
+    total_pairs = 0
     template = '@{}\n{}\n+\n{}'
     with ExitStack() as context:
         reads1, reads2 = (
@@ -88,15 +88,16 @@ def primercut(forward, reverse, mismatches, inputs: Tuple[str, str], outputs: Tu
         )([out1, out2])
         normalised_pairs = normalise_pairs(forward, reverse, reads1, reads2)
         for entry in normalised_pairs:
-            total += 1
+            total_pairs += 1
             if not entry:
                 bad_pairs += 1
                 continue
             (name1, seq1, qual1), (name2, seq2, qual2) = entry
             print(template.format(name1, seq1, qual1), file=output1)
             print(template.format(name2, seq2, qual2), file=output2)
-    print(f'Successfully normalised {total-bad_pairs} pairs out of {total}',
-          file=sys.stderr)
+    good_pairs = total_pairs - bad_pairs
+    print(f'Successfully normalised {good_pairs} ({good_pairs/total_pairs:.1%})'
+          f' pairs out of {total_pairs}', file=sys.stderr)
 
 
 if __name__ == '__main__':
