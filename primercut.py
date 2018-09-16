@@ -1,11 +1,11 @@
 import sys
 from contextlib import ExitStack
+from itertools import starmap
 from typing import Pattern, Tuple, List, Optional, TypeVar, Iterator
 
 import click
 import regex as re
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
+from Bio.SeqIO.QualityIO import FastqGeneralIterator
 from fn import F
 
 from pipeline.util import gzread, gzwrite
@@ -31,6 +31,22 @@ ALPHABET = {
 A = TypeVar('A')
 
 
+class Seq:
+    """
+    BioPython's high-level SeqRecord, Seq and SeqIO interfaces are too slow.
+    This class provides a similar, but thinner, abstraction over sequences
+    """
+    def __init__(self, name: str, seq: str, qual=None):
+        self.name = name
+        self.seq = seq
+        self.qual = qual
+
+    def __getitem__(self, item: slice):
+        seq = self.seq[item]
+        qual = self.qual[item] if self.qual else None
+        return type(self)(self.name, seq, qual)
+
+
 def mkprimer(substitutions: int, primer: str):
     try:
         base = ''.join(ALPHABET[base] for base in primer)
@@ -40,15 +56,15 @@ def mkprimer(substitutions: int, primer: str):
         raise ValueError(f'unknown base: {err}')
 
 
-def match(primers: List[Tuple[A, Pattern]], seq: SeqRecord) -> Optional[Tuple[A, str]]:
+def match(primers: List[Tuple[A, Pattern]], seq: Seq) -> Optional[Tuple[A, Seq]]:
     for flag, primer in primers:
-        match_ = primer.match(str(seq.seq))
+        match_ = primer.match(seq.seq)
         if match_:
             return flag, seq[match_.end():]
     return None
 
 
-def normalise_pairs(forward, reverse, reads1: Iterator, reads2: Iterator) -> Iterator:
+def normalise_pairs(forward, reverse, reads1: Iterator, reads2: Iterator) -> Iterator[Tuple[Seq, Seq]]:
     for r1, r2 in zip(reads1, reads2):
         match1 = match([('F', forward), ('R', reverse)], r1)
         match2 = match([('R', reverse), ('F', forward)], r2)
@@ -79,26 +95,20 @@ def primercut(forward, reverse, mismatches, inputs: Tuple[str, str], outputs: Tu
     with ExitStack() as context:
         reads1, reads2 = (
             F(map, gzread) >> (map, context.enter_context) >>
-            (map, lambda x: SeqIO.parse(x, 'fastq'))
+            (map, FastqGeneralIterator) >> (map, F(starmap, Seq))
         )([in1, in2])
         output1, output2 = (
             F(map, gzwrite) >> (map, context.enter_context)
         )([out1, out2])
         normalised_pairs = normalise_pairs(forward, reverse, reads1, reads2)
-        forward_buffer = []
-        reverse_buffer = []
         for entry in normalised_pairs:
             total_pairs += 1
             if not entry:
                 bad_pairs += 1
                 continue
-            forward_buffer.append(entry[0])
-            reverse_buffer.append(entry[1])
-            # (name1, seq1, qual1), (name2, seq2, qual2) = entry
-            # print(template.format(name1, seq1, qual1), file=output1)
-            # print(template.format(name2, seq2, qual2), file=output2)
-        SeqIO.write(forward_buffer, output1, 'fastq')
-        SeqIO.write(reverse_buffer, output2, 'fastq')
+            r1, r2 = entry
+            print(template.format(r1.name, r1.seq, r1.qual), file=output1)
+            print(template.format(r2.name, r2.seq, r2.qual), file=output2)
     good_pairs = total_pairs - bad_pairs
     print(f'Successfully normalised {good_pairs} ({good_pairs/total_pairs:.1%})'
           f' pairs out of {total_pairs}', file=sys.stderr)
