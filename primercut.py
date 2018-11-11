@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import sys
 from contextlib import ExitStack
 from itertools import starmap
