@@ -7,8 +7,8 @@ import pandas as pd
 from fn import F, _ as X
 from fn.func import identity
 
-from pipeline import core
-from pipeline.pampi import data, pick, util, join, trim
+from pipeline import core, util
+from pipeline.pampi import data, pick, join, trim
 
 CLUSTERS = 'clusters'
 TMPDIR = 'tmpdir'

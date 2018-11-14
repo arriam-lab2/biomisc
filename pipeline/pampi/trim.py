@@ -5,7 +5,8 @@ import numba as nb
 import numpy as np
 from fn import F
 
-from pipeline.pampi import util, data
+from pipeline.pampi import data
+from pipeline import util
 
 
 @nb.jit(locals={'total': nb.int32, 'threshold': nb.int32, 'stop': nb.int32})
@@ -112,10 +113,10 @@ def trimmer(tmpdir: str, phred: int, minqual: int, window: int, minlen: int,
         )
         # filter pairs with insufficient cumulative length
         trimmed_pairs = (
-            F(util.starapply, zip) >>
-            (map, trimmer_) >>
-            (util.starapply, zip) >>
-            (filter, lambda pair: cumlength(pair) >= (minlen - croplen*2))
+                F(util.starapply, zip) >>
+                (map, trimmer_) >>
+                (util.starapply, zip) >>
+                (filter, lambda pair: cumlength(pair) >= (minlen - croplen*2))
         )(sample.parse())
         with util.writer(compress, fwd_out) as fbuffer, util.writer(compress, rev_out) as rbuffer:
             for (fname, fseq, fqual), (rname, rseq, rqual) in trimmed_pairs:
